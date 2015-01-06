@@ -22,7 +22,7 @@ __copyright__ = 'Copyright © 2014 Timothy Pederick'
 
 # Standard library imports.
 from argparse import ArgumentParser
-from collections import namedtuple
+from collections import defaultdict, namedtuple
 import csv
 import os
 import random
@@ -146,10 +146,10 @@ def validate_formats(verbose=False, out=sys.stdout, err=sys.stderr):
 
                     matches[source] = 0
                     gender_counts = {'M': 0, 'F': 0, 'N': 0}
-                    for fields in data(source):
-                        if fields.nationality == nationality:
+                    for record in data(source):
+                        if record.nationality == nationality:
                             matches[source] += 1
-                            gender_counts[fields.gender] += 1
+                            gender_counts[record.gender] += 1
 
                     if matches[source] == 0:
                         print("ERROR: no {} records in source "
@@ -195,7 +195,7 @@ def validate_data(verbose=False, out=sys.stdout, err=sys.stderr):
             seen = {}
 
             print('\t', end='', file=out)
-            for n, fields in enumerate(datasource):
+            for n, record in enumerate(datasource):
                 # Only indicate progress every ten records.
                 if (n + 1) % 10 == 0:
                     print('{} records... '.format(n + 1), end='', file=out)
@@ -204,22 +204,22 @@ def validate_data(verbose=False, out=sys.stdout, err=sys.stderr):
                 # native script) has not been previously seen, for the same
                 # gender and same nationality, and (if a patro- or matronymic)
                 # with the same source name.
-                recordkey = ((fields.name if fields.original == '' else
-                              fields.original),
-                             fields.gender, fields.nationality,
-                             ('' if not hasattr(fields, 'from_') else
-                              fields.from_))
+                recordkey = ((record.name if record.original == '' else
+                              record.original),
+                             record.gender, record.nationality,
+                             ('' if not hasattr(record, 'from_') else
+                              record.from_))
                 try:
                     existing = seen[recordkey]
                 except KeyError:
                     # Yes it is.
-                    seen[recordkey] = fields
+                    seen[recordkey] = record
                 else:
                     # No it's not.
-                    if fields == existing:
+                    if record == existing:
                         # The exact same record already exists.
                         print("WARNING: record identical to '{!r}' "
-                              "already exists".format(fields), file=err)
+                              "already exists".format(record), file=err)
                     else:
                         # The same name is already recorded, but it differs in
                         # some aspect; there might be a legitimate reason
@@ -228,21 +228,71 @@ def validate_data(verbose=False, out=sys.stdout, err=sys.stderr):
                         # the other wrong).
                         print("WARNING: record matching '{!r}' exists "
                               "with different values "
-                              "('{!r}')".format(fields, existing),
+                              "('{!r}')".format(record, existing),
                               file=err)
 
                 try:
-                    formats = NATIONALITIES[fields.nationality]
+                    formats = NATIONALITIES[record.nationality]
                 except KeyError:
                     print("WARNING: unknown nationality in record "
-                          "'{!r}'".format(fields))
+                          "'{!r}'".format(record))
                 else:
                     if not any((NAME_PARTS[part] == source)
                                for fmt in formats
                                for part in fmt):
                         print("WARNING: no {} name format uses data from "
-                              "'{}'".format(fields.nationality, source))
+                              "'{}'".format(record.nationality, source),
+                              file=err)
             print('{} records.'.format(n + 1), end='\n\n', file=out)
+    finally:
+        # Close a substitute output stream we opened, but not one passed to us.
+        if not verbose:
+            out.close()
+
+def validate_pmatronyms(verbose=False, out=sys.stdout, err=sys.stderr):
+    '''Validate patro- and matronymic names.'''
+    # Only these languages will give warnings if matronymics are not found for
+    # female names.
+    needs_matro = ['Icelandic']
+
+    try:
+        if not verbose:
+            # The verbose argument being False overrides the out argument.
+            out = open(os.devnull, mode='w')
+
+        pmats_by_nat = defaultdict(list)
+        for record in data('pmatronymic'):
+            name = record.name if record.original == '' else record.original
+            pmats_by_nat[record.nationality].append((name,
+                                                     record.from_))
+
+        names_by_nat = defaultdict(dict)
+        for record in data('personal'):
+            name = record.name if record.original == '' else record.original
+            if record.nationality not in pmats_by_nat:
+                continue
+            names_by_nat[record.nationality][name] = (record.gender, [])
+
+        for nat, pmats in pmats_by_nat.items():
+            for pmat, from_ in pmats:
+                try:
+                    names_by_nat[nat][from_][1].append(pmat)
+                except KeyError:
+                    print("WARNING: '{}' is not in the list of {} "
+                          "personal names".format(from_, nat),
+                          file=err)
+        for nat, names in names_by_nat.items():
+            print('Checking {} patro-/matronyms...'.format(nat), file=out)
+            for name, (gender, pmats) in names.items():
+                if (gender != FEMININE or nat in needs_matro):
+                    if len(pmats) == 0:
+                        print("WARNING: {} name '{}' has no {}atronymic "
+                              "form".format(nat, name,
+                                            ('m' if gender == FEMININE else
+                                             'p')), file=err)
+                    else:
+                        print('\t{}:'.format(name), ', '.join(pmats), file=out)
+
     finally:
         # Close a substitute output stream we opened, but not one passed to us.
         if not verbose:
@@ -263,9 +313,9 @@ def generate(nationality=None, gender=None, verbose=False):
     if gender is None:
         gender = random.choice([MASCULINE, FEMININE])
     if verbose:
-        print('Generating {} {} name...'.format(nationality,
-                                                {MASCULINE: 'masculine',
-                                                 FEMININE: 'feminine'}[gender]))
+        print('Generating {} {} name...'.format({MASCULINE: 'masculine',
+                                                 FEMININE: 'feminine'}[gender],
+                                                nationality))
 
     fmt = random.choice(NATIONALITIES[nationality])
 
@@ -277,10 +327,10 @@ def generate(nationality=None, gender=None, verbose=False):
         source = NAME_PARTS[part]
         if source not in matching:
             matching[source] = []
-            for fields in data(source):
-                if (fields.nationality == nationality and
-                    fields.gender in (gender, NEUTER)):
-                    matching[source].append((fields.name, fields.original))
+            for record in data(source):
+                if (record.nationality == nationality and
+                    record.gender in (gender, NEUTER)):
+                    matching[source].append((record.name, record.original))
 
         pos = random.randrange(len(matching[source]))
         # Don't reselect this name for the same person--pop() it from the list.
@@ -325,6 +375,7 @@ def main():
     if args.action == 'validate':
         validate_data(verbose=args.verbose)
         validate_formats(verbose=args.verbose)
+        validate_pmatronyms(verbose=args.verbose)
     else:
         for _ in range(args.count):
             print(generate(verbose=args.verbose, nationality=args.nat,
