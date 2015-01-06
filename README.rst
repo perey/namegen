@@ -60,3 +60,17 @@ Generation parameters
     as "ru".
 ``-g {M,F}``, ``--gender {M,F}``
     The gender of the name(s) generated.
+
+Copyright and Licence
+=====================
+
+The Namegen module is copyright © 2014 Timothy Pederick. It is licensed under
+the GNU Affero General Public License, either version 3, or (at your option)
+any later version.
+
+The author disclaims any copyright in the CSV data files, considering them
+mere collections of fact. For the avoidance of doubt, if any copyright is held 
+to exist in the data files, it is licensed under the terms of the Creative
+Commons Public Domain Dedication ("`CC-zero`__").
+
+__ https://creativecommons.org/publicdomain/zero/1.0/deed.en
