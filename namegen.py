@@ -76,6 +76,22 @@ NAT_ABBREVS = {'hy': 'Armenian', 'hye': 'Armenian', 'arm': 'Armenian',
                'uk': 'Ukrainian', 'ukr': 'Ukrainian',
                'vi': 'Vietnamese', 'vie': 'Vietnamese'}
 
+def nat_lookup(nat):
+    '''Get suitable values for nationality arguments.
+
+    If the argument is already a full nationality name (or if it is
+    unrecognised), it is returned unchanged. If it is an abbreviation,
+    the corresponding full name is returned.
+
+    '''
+    try:
+        # Is this an abbreviation?
+        nat = NAT_ABBREVS[nat]
+    except KeyError:
+        # No.
+        pass
+    return nat
+
 # Data sources.
 # This dictionary matches identifiers to 2-tuples, containing a filename
 # for a CSV file, and a tuple of headings, which are from the following list:
@@ -298,24 +314,12 @@ def validate_pmatronyms(verbose=False, out=sys.stdout, err=sys.stderr):
         if not verbose:
             out.close()
 
-def generate(nationality=None, gender=None, verbose=False):
+def generate(nationality=None, gender=None):
     '''Generate a random name.'''
-    if nationality is None:
-        nationality = random.choice(list(NATIONALITIES))
-    else:
-        try:
-            # Is this an abbreviation?
-            nationality = NAT_ABBREVS[nationality]
-        except KeyError:
-            # This is, we hope, a key from NATIONALITIES. If it's not, it will
-            # cause another KeyError a few lines down.
-            pass
+    nationality = (random.choice(list(NATIONALITIES))
+                   if nationality is None else nat_lookup(nationality))
     if gender is None:
         gender = random.choice([MASCULINE, FEMININE])
-    if verbose:
-        print('Generating {} {} name...'.format({MASCULINE: 'masculine',
-                                                 FEMININE: 'feminine'}[gender],
-                                                nationality))
 
     fmt = random.choice(NATIONALITIES[nationality])
 
@@ -339,10 +343,8 @@ def generate(nationality=None, gender=None, verbose=False):
         if original != '':
             original_parts.append(original)
 
-    result = ' '.join(latin_parts)
-    if len(original_parts) != 0:
-        result += ' (' + ' '.join(original_parts) + ')'
-    return result
+    return (' '.join(latin_parts), ' '.join(original_parts),
+            gender, nationality)
 
 def main():
     '''Handle command-line options and run the name generator.'''
@@ -377,9 +379,25 @@ def main():
         validate_formats(verbose=args.verbose)
         validate_pmatronyms(verbose=args.verbose)
     else:
+        if args.verbose:
+            print('Generating {} random {}{}'
+                  'name{}...'.format(args.count,
+                                     {MASCULINE: 'masculine ',
+                                      FEMININE: 'feminine '}.get(args.gender,
+                                                                 ''),
+                                     ('' if args.nat is None else
+                                      nat_lookup(args.nat) + ' '),
+                                     's' if args.count > 1 else ''))
         for _ in range(args.count):
-            print(generate(verbose=args.verbose, nationality=args.nat,
-                           gender=args.gender))
+            (name, original,
+             gender, nationality) = generate(nationality=args.nat,
+                                             gender=args.gender)
+            print(name, end='')
+            if original != '':
+                print(' ({})'.format(original), end='')
+            if args.verbose:
+                print(' ({}, {})'.format(gender, nationality), end='')
+            print()
 
 if __name__ == '__main__':
     main()
