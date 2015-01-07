@@ -36,3 +36,6 @@ nosetests.xml
 
 #Mr Developer
 .mr.developer.cfg
+
+# Compiled database
+namegen.db

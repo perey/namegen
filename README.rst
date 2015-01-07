@@ -46,7 +46,7 @@ Actions
 ``-G``, ``--generate``
     Generate one or more names. (This is the default action.)
 ``-V``, ``--validate``
-    Perform validation of data files.
+    Rebuild and validate the database.
 
 ---------------------
 Generation parameters
