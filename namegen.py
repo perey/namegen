@@ -139,9 +139,34 @@ def csvdata(source):
     return map(nt._make, csv.reader(open(filename, encoding='utf-8',
                                          newline='')))
 
-def data(source, dbfilename=DEFAULT_DBFILE, verbose=False, **kwargs):
+def data(source, dbfilename=DEFAULT_DBFILE, randomise=False, limit=None,
+         verbose=False, **kwargs):
     '''Fetch data from the SQLite database.'''
     nt = nt_for(source)
+
+    query, qparms = ['SELECT * FROM "{}"'.format(source)], []
+    if len(kwargs) > 0:
+        query.append('WHERE')
+        where = []
+        for kw, val in kwargs.items():
+            # Special handling for particular columns...
+            if kw == 'gender':
+                # Include neuter names when searching by gender.
+                where.append('("{0}" = ? OR "{0}" = ?)'.format(kw))
+                qparms.append(NEUTER)
+            else:
+                where.append('"{}" = ?'.format(kw))
+            qparms.append(val)
+        query.append(' AND '.join(where))
+    if randomise:
+        query.append('ORDER BY random()')
+    if limit is not None:
+        query.append('LIMIT {}'.format(abs(int(limit))))
+
+    query_string = ' '.join(query)
+    if verbose:
+        print("Executing query '{}' with parameters {!r}".format(query_string,
+                                                                 qparms))
 
     if not os.path.isfile(dbfilename):
         build_db(dbfilename=dbfilename, verbose=verbose)
@@ -153,10 +178,7 @@ def data(source, dbfilename=DEFAULT_DBFILE, verbose=False, **kwargs):
         # be necessary.
         with conn:
             cur = conn.cursor()
-            cur.execute('SELECT *'
-                        ' FROM ?', (source,))
-            # TODO: Apply kwargs as the WHERE clause. Each kwarg must be chosen
-            # from the allowed headings in this database.
+            cur.execute(query_string, qparms)
             results = map(nt._make, cur.fetchall())
     finally:
         conn.close()
@@ -299,7 +321,7 @@ def build_db(dbfilename=DEFAULT_DBFILE, verbose=False):
                         '  , fn.Gender as gender'
                         '  , cn.Name as counterpart'
                         '  , fn.Nationality as nationality'
-                        '  FROM FamilyNames fn JOIN FamilyNames cn'
+                        '  FROM FamilyNames fn LEFT JOIN FamilyNames cn'
                         '   ON fn.CounterpartID = cn.FamilyNameID')
 
             cur.execute('CREATE VIEW pmatronymic AS'
@@ -463,10 +485,10 @@ def show_duplicate_warning(row, compare_cols, compare_labels=None):
                                              ', '.join(mismatches)),
               file=sys.stderr)
 
-def generate(nationality=None, gender=None):
+def generate(nationality=None, gender=None, verbose=False):
     '''Generate a random name.'''
-    nationality = (random.choice(list(NATIONALITIES))
-                   if nationality is None else nat_lookup(nationality))
+    nationality = (nat_lookup(nationality) if nationality is not None else
+                   random.choice(list(NATIONALITIES)))
     if gender is None:
         gender = random.choice([MASCULINE, FEMININE])
 
@@ -475,24 +497,19 @@ def generate(nationality=None, gender=None):
     latin_parts = []
     original_parts = []
 
-    matching = {}
     for part in fmt:
         source = NAME_PARTS[part]
-        if source not in matching:
-            matching[source] = []
-            for record in csvdata(source):
-                if (record.nationality == nationality and
-                    record.gender in (gender, NEUTER)):
-                    matching[source].append((record.name, record.romanisation))
+        
+        random_choices = data(source, gender=gender, nationality=nationality,
+                              randomise=True, limit=1, verbose=verbose)
+        # TODO: Don't double up on names if one part is used more than once.
 
-        pos = random.randrange(len(matching[source]))
-        # Don't reselect this name for the same person--pop() it from the list.
-        name, romanisation = matching[source].pop(pos)
-        if romanisation == '':
-            latin_parts.append(name)
+        chosen = next(random_choices)
+        if chosen.romanisation == '':
+            latin_parts.append(chosen.name)
         else:
-            original_parts.append(romanisation)
-            latin_parts.append(name)
+            original_parts.append(chosen.romanisation)
+            latin_parts.append(chosen.name)
 
     return (' '.join(latin_parts), ' '.join(original_parts),
             gender, nationality)
@@ -552,7 +569,8 @@ def main():
         for _ in range(args.count):
             (name, original,
              gender, nationality) = generate(nationality=args.nat,
-                                             gender=args.gender)
+                                             gender=args.gender,
+                                             verbose=args.verbose)
             print(name, end='')
             if original != '':
                 print(' ({})'.format(original), end='')
