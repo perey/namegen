@@ -50,6 +50,8 @@ NATIONALITIES = {'Armenian': (('personal', 'family'),),
                  'Hungarian': (('family', 'personal'),),
                  'Icelandic': (('personal', 'patronym'),
                                ('personal', 'matronym'),
+                               ('personal', 'additional', 'patronym'),
+                               ('personal', 'additional', 'matronym'),
                                ('personal', 'patronym', 'matronym'),
                                ('personal', 'patronym', 'family'),
                                ('personal', 'matronym', 'family'),),
@@ -60,6 +62,7 @@ NATIONALITIES = {'Armenian': (('personal', 'family'),),
                  'Russian': (('personal', 'patronym', 'family'),),
                  'Spanish': (('personal', 'patriname', 'matriname'),
                              ('personal', 'matriname', 'patriname')),
+                 'Turkish': (('personal', 'family'),),
                  'Ukrainian': (('personal', 'patronym', 'family'),),
                  'Vietnamese': (('family', 'additional', 'personal'),)
                  }
@@ -74,6 +77,7 @@ NAT_ABBREVS = {'hy': 'Armenian', 'hye': 'Armenian', 'arm': 'Armenian',
                'pl': 'Polish', 'pol': 'Polish',
                'ru': 'Russian', 'rus': 'Russian',
                'es': 'Spanish', 'spa': 'Spanish',
+               'tu': 'Turkish', 'tur': 'Turkish',
                'uk': 'Ukrainian', 'ukr': 'Ukrainian',
                'vi': 'Vietnamese', 'vie': 'Vietnamese'}
 
@@ -96,20 +100,21 @@ def nat_lookup(nat):
 # Data sources.
 # This dictionary matches identifiers to 2-tuples, containing a filename
 # for a CSV file, and a tuple of headings, which are from the following list:
-# * 'name': The Romanised name.
-# * 'original': The name in the native script (empty if that is Latin).
+# * 'name': The name in its native script.
+# * 'romanised': The romanised version of the name (empty if the native script
+#      is already Latin).
 # * 'counterpart': A corresponding name with the opposite ('M'/'F') gender.
 # * 'from_': A name from which another (e.g. a patronym) is derived, as it
-#      appears in the 'original' field (i.e. in the native script).
+#      appears in the 'name' field (i.e. in the native script).
 # * 'gender': 'M' for male names, 'F' for female, 'N' if applicable to either.
 # * 'nationality': A key from the NATIONALITIES mapping.
-DATA = {'personal': ('personal.csv', ('name', 'original', 'gender',
+DATA = {'personal': ('personal.csv', ('name', 'romanised', 'gender',
                                       'nationality')),
-        'additional': ('additional.csv', ('name', 'original', 'gender',
+        'additional': ('additional.csv', ('name', 'romanised', 'gender',
                                           'nationality')),
-        'family': ('family.csv', ('name', 'original', 'gender',
+        'family': ('family.csv', ('name', 'romanised', 'gender',
                                   'counterpart', 'nationality')),
-        'pmatronymic': ('pmatronymic.csv', ('name', 'original', 'from_',
+        'pmatronymic': ('pmatronymic.csv', ('name', 'romanised', 'from_',
                                             'gender', 'nationality'))
         }
 
@@ -221,9 +226,7 @@ def validate_data(verbose=False, out=sys.stdout, err=sys.stderr):
                 # native script) has not been previously seen, for the same
                 # gender and same nationality, and (if a patro- or matronymic)
                 # with the same source name.
-                recordkey = ((record.name if record.original == '' else
-                              record.original),
-                             record.gender, record.nationality,
+                recordkey = (record.name, record.gender, record.nationality,
                              ('' if not hasattr(record, 'from_') else
                               record.from_))
                 try:
@@ -279,16 +282,14 @@ def validate_pmatronyms(verbose=False, out=sys.stdout, err=sys.stderr):
 
         pmats_by_nat = defaultdict(list)
         for record in data('pmatronymic'):
-            name = record.name if record.original == '' else record.original
-            pmats_by_nat[record.nationality].append((name,
+            pmats_by_nat[record.nationality].append((record.name,
                                                      record.from_))
 
         names_by_nat = defaultdict(dict)
         for record in data('personal'):
-            name = record.name if record.original == '' else record.original
             if record.nationality not in pmats_by_nat:
                 continue
-            names_by_nat[record.nationality][name] = (record.gender, [])
+            names_by_nat[record.nationality][record.name] = (record.gender, [])
 
         for nat, pmats in pmats_by_nat.items():
             for pmat, from_ in pmats:
@@ -335,14 +336,16 @@ def generate(nationality=None, gender=None):
             for record in data(source):
                 if (record.nationality == nationality and
                     record.gender in (gender, NEUTER)):
-                    matching[source].append((record.name, record.original))
+                    matching[source].append((record.name, record.romanised))
 
         pos = random.randrange(len(matching[source]))
         # Don't reselect this name for the same person--pop() it from the list.
-        latin, original = matching[source].pop(pos)
-        latin_parts.append(latin)
-        if original != '':
-            original_parts.append(original)
+        name, romanised = matching[source].pop(pos)
+        if romanised == '':
+            latin_parts.append(name)
+        else:
+            original_parts.append(name)
+            latin_parts.append(romanised)
 
     return (' '.join(latin_parts), ' '.join(original_parts),
             gender, nationality)
