@@ -140,7 +140,7 @@ def csvdata(source):
                                          newline='')))
 
 def data(source, dbfilename=DEFAULT_DBFILE, randomise=False, limit=None,
-         verbose=False, **kwargs):
+         verbosity=0, **kwargs):
     '''Fetch data from the SQLite database.'''
     nt = nt_for(source)
 
@@ -164,12 +164,13 @@ def data(source, dbfilename=DEFAULT_DBFILE, randomise=False, limit=None,
         query.append('LIMIT {}'.format(abs(int(limit))))
 
     query_string = ' '.join(query)
-    if verbose:
+    # Only display the query if extra verbosity was requested.
+    if verbosity > 1:
         print("Executing query '{}' with parameters {!r}".format(query_string,
                                                                  qparms))
 
     if not os.path.isfile(dbfilename):
-        build_db(dbfilename=dbfilename, verbose=verbose)
+        build_db(dbfilename=dbfilename, verbosity=verbosity)
     conn = sqlite3.connect(dbfilename)
     try:
         # The context manager probably isn't necessary. We're only running a
@@ -184,9 +185,9 @@ def data(source, dbfilename=DEFAULT_DBFILE, randomise=False, limit=None,
         conn.close()
     return results
 
-def build_db(dbfilename=DEFAULT_DBFILE, verbose=False):
+def build_db(dbfilename=DEFAULT_DBFILE, verbosity=0):
     '''(Re)build the SQLite database from the CSV files.'''
-    if verbose:
+    if verbosity:
         print("(Re)building database in file '{}'...".format(dbfilename))
     # Connect to the database file.
     conn = sqlite3.connect(dbfilename)
@@ -198,7 +199,8 @@ def build_db(dbfilename=DEFAULT_DBFILE, verbose=False):
             cur.execute('DROP VIEW IF EXISTS additional')
             cur.execute('DROP VIEW IF EXISTS family')
             cur.execute('DROP VIEW IF EXISTS pmatronymic')
-            if verbose:
+            # Only detail individual steps if extra verbosity was requested.
+            if verbosity > 1:
                 print('\tViews cleared')
             
             # Create or replace tables.
@@ -241,20 +243,23 @@ def build_db(dbfilename=DEFAULT_DBFILE, verbose=False):
                         ', Gender TEXT NOT NULL'
                         ', Nationality TEXT NOT NULL'
                         ' )')
-            if verbose:
+            # Only detail individual steps if extra verbosity was requested.
+            if verbosity > 1:
                 print('\tTables (re)built')
 
             # Read data files and populate tables.
             cur.executemany('INSERT INTO PersonalNames'
                             ' (Name, Romanisation, Gender, Nationality)'
                             ' VALUES (?, ?, ?, ?)', csvdata('personal'))
-            if verbose:
+            # Only detail individual steps if extra verbosity was requested.
+            if verbosity > 1:
                 print('\tPersonal names inserted')
 
             cur.executemany('INSERT INTO AdditionalNames'
                             ' (Name, Romanisation, Gender, Nationality)'
                             ' VALUES (?, ?, ?, ?)', csvdata('additional'))
-            if verbose:
+            # Only detail individual steps if extra verbosity was requested.
+            if verbosity > 1:
                 print('\tAdditional names inserted')
 
             for record in csvdata('family'):
@@ -264,7 +269,8 @@ def build_db(dbfilename=DEFAULT_DBFILE, verbose=False):
                                                      record.romanisation,
                                                      record.gender,
                                                      record.nationality))
-            if verbose:
+            # Only detail individual steps if extra verbosity was requested.
+            if verbosity > 1:
                 print('\tFamily names inserted')
             for record in csvdata('family'):
                 if record.counterpart != '':
@@ -279,7 +285,8 @@ def build_db(dbfilename=DEFAULT_DBFILE, verbose=False):
                     cur.execute('UPDATE FamilyNames'
                                 ' SET CounterpartID = ?'
                                 ' WHERE FamilyNameID = ?', (that_id, this_id))
-            if verbose:
+            # Only detail individual steps if extra verbosity was requested.
+            if verbosity > 1:
                 print('\tFamily name gender counterparts matched up')
 
             for record in csvdata('pmatronymic'):
@@ -298,7 +305,8 @@ def build_db(dbfilename=DEFAULT_DBFILE, verbose=False):
                                                         from_id,
                                                         record.gender,
                                                         record.nationality))
-            if verbose:
+            # Only detail individual steps if extra verbosity was requested.
+            if verbosity > 1:
                 print('\tPatro-/matronymics inserted')
 
             cur.execute('CREATE VIEW personal AS'
@@ -332,13 +340,16 @@ def build_db(dbfilename=DEFAULT_DBFILE, verbose=False):
                         '  , nym.Nationality as nationality'
                         '  FROM PMatronymics nym JOIN PersonalNames pn'
                         '   ON nym.FromPersonalNameID = pn.PersonalNameID')
+            # Only detail individual steps if extra verbosity was requested.
+            if verbosity > 1:
+                print('\tViews created')
     finally:
         conn.close()
 
-def validate_data(dbfilename=DEFAULT_DBFILE, verbose=False):
+def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
     '''Validate non-SQL database constraints.'''
     if not os.path.isfile(dbfilename):
-        build_db(dbfilename=dbfilename, verbose=verbose)
+        build_db(dbfilename=dbfilename, verbosity=verbosity)
     conn = sqlite3.connect(dbfilename)
     conn.row_factory = sqlite3.Row
     try:
@@ -355,7 +366,7 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbose=False):
         # are written the same in their native script.
 
         # 1a. Are personal names unique?
-        if verbose:
+        if verbosity:
             print('Checking personal names for uniqueness...')
         cur.execute('SELECT p1.Name as Name'
                     ' , p1.Romanisation as RomA'
@@ -372,7 +383,7 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbose=False):
                                    ('romanised as', 'gender'))
 
         # 1b. Are additional names unique?
-        if verbose:
+        if verbosity:
             print('Checking additional names for uniqueness...')
         cur.execute('SELECT a1.Name as Name'
                     ' , a1.Romanisation as RomA'
@@ -389,7 +400,7 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbose=False):
                                    ('romanised as', 'gender'))
 
         # 1c. Are family names unique?
-        if verbose:
+        if verbosity:
             print('Checking family names for uniqueness...')
         cur.execute('SELECT f1.Name as Name'
                     ' , f1.Romanisation as RomA'
@@ -413,7 +424,7 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbose=False):
                                    ('romanised as', 'gender', 'counterpart'))
 
         # 1d. Are patro-/matronymics unique?
-        if verbose:
+        if verbosity:
             print('Checking patro-/matronymics names for uniqueness...')
         cur.execute('SELECT nym1.Name as Name'
                     ' , nym1.Romanisation as RomA'
@@ -485,7 +496,7 @@ def show_duplicate_warning(row, compare_cols, compare_labels=None):
                                              ', '.join(mismatches)),
               file=sys.stderr)
 
-def generate(nationality=None, gender=None, verbose=False):
+def generate(nationality=None, gender=None, verbosity=0):
     '''Generate a random name.'''
     nationality = (nat_lookup(nationality) if nationality is not None else
                    random.choice(list(NATIONALITIES)))
@@ -501,7 +512,7 @@ def generate(nationality=None, gender=None, verbose=False):
         source = NAME_PARTS[part]
         
         random_choices = data(source, gender=gender, nationality=nationality,
-                              randomise=True, limit=1, verbose=verbose)
+                              randomise=True, limit=1, verbosity=verbosity)
         # TODO: Don't double up on names if one part is used more than once.
 
         chosen = next(random_choices)
@@ -519,8 +530,9 @@ def argparser():
     parser = ArgumentParser(description='Generate one or more random names.')
     parser.add_argument('--version', action='version',
                         version='%(prog)s {}'.format(__version__))
-    parser.add_argument('-v', '--verbose', action='store_true',
-                        help='show detailed information')
+    parser.add_argument('-v', '--verbose', action='count',
+                        help=('show detailed information (may be specified '
+                              'twice for extra detail)'))
 
     action = parser.add_mutually_exclusive_group()
     action.add_argument('-G', '--generate', action='store_const',
@@ -554,8 +566,8 @@ def main():
     args = argparser().parse_args()
     if args.action == 'validate':
         if not args.skip_rebuild:
-            build_db(verbose=args.verbose)
-        validate_data(verbose=args.verbose)
+            build_db(verbosity=args.verbose)
+        validate_data(verbosity=args.verbose)
     else:
         if args.verbose:
             print('Generating {} random {}{}'
@@ -570,7 +582,7 @@ def main():
             (name, original,
              gender, nationality) = generate(nationality=args.nat,
                                              gender=args.gender,
-                                             verbose=args.verbose)
+                                             verbosity=args.verbose)
             print(name, end='')
             if original != '':
                 print(' ({})'.format(original), end='')
