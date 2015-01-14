@@ -530,7 +530,7 @@ def argparser():
     parser = ArgumentParser(description='Generate one or more random names.')
     parser.add_argument('--version', action='version',
                         version='%(prog)s {}'.format(__version__))
-    parser.add_argument('-v', '--verbose', action='count',
+    parser.add_argument('-v', '--verbose', action='count', default=0,
                         help=('show detailed information (may be specified '
                               'twice for extra detail)'))
 
