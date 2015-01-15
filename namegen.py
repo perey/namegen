@@ -145,30 +145,73 @@ def data(source, dbfilename=DEFAULT_DBFILE, randomise=False, limit=None,
     nt = nt_for(source)
 
     query, qparms = ['SELECT * FROM "{}"'.format(source)], []
+
+    # Handle additional keyword arguments as selection criteria (i.e. the WHERE
+    # clause): the argument name is the column and its value is what to match
+    # in that column. (A keyword prefixed with 'not_' means to return records
+    # that don't match instead.)
+    NEGATE_PREFIX = 'not_'
     if len(kwargs) > 0:
         query.append('WHERE')
         where = []
         for kw, val in kwargs.items():
-            # Special handling for particular columns...
-            if kw == 'gender':
-                # Include neuter names when searching by gender.
+            # Are there multiple values specified?
+            val_is_multipart = not isinstance(val, str) # Strings don't count.
+            if val_is_multipart: # Actually only a maybe at this point.
+                try:
+                    # Non-sequence types choke on len()...
+                    len(val)
+                except TypeError:
+                    val_is_multipart = False
+
+            # Handle columns prefixed with 'not_'. Aside from looking for non-
+            # matches ('<>') instead of matches ('='), this also means joining
+            # each of multiple values (if present) with 'AND' rather than 'OR'.
+            if kw.startswith(NEGATE_PREFIX):
+                # Strip the 'not_' prefix and search for non-matches ('<>').
+                colname = kw[len(NEGATE_PREFIX):]
+                if val_is_multipart:
+                    unmatches = ('"{}" <> ?'.format(colname) for _ in val)
+                    where.append('(' + ' AND '.join(unmatches) + ')')
+                else:
+                    where.append('"{}" <> ?'.format(colname))
+
+            # Special handling for the 'gender' column (include neuter names
+            # when searching by gender), unless it's negated (handled above),
+            # we're looking for neuter names, or multiple values have been
+            # specified.
+            elif kw == 'gender' and not val_is_multipart and val is not NEUTER:
                 where.append('("{0}" = ? OR "{0}" = ?)'.format(kw))
                 qparms.append(NEUTER)
+
+            # Handle every other case.
             else:
-                where.append('"{}" = ?'.format(kw))
-            qparms.append(val)
+                if val_is_multipart:
+                    matches = ('"{}" = ?'.format(kw) for _ in val)
+                    where.append('(' + ' OR '.join(matches) + ')')
+                else:
+                    where.append('"{}" = ?'.format(kw))
+
+            # Add the value(s) to the query parameters.
+            if val_is_multipart:
+                qparms.extend(val)
+            else:
+                qparms.append(val)
+        # Add the WHERE clause to the query.
         query.append(' AND '.join(where))
     if randomise:
         query.append('ORDER BY random()')
     if limit is not None:
         query.append('LIMIT {}'.format(abs(int(limit))))
 
+    # Assemble the query.
     query_string = ' '.join(query)
     # Only display the query if extra verbosity was requested.
     if verbosity > 1:
         print("Executing query '{}' with parameters {!r}".format(query_string,
                                                                  qparms))
 
+    # Pass it to the database.
     if not os.path.isfile(dbfilename):
         build_db(dbfilename=dbfilename, verbosity=verbosity)
     conn = sqlite3.connect(dbfilename)
@@ -356,7 +399,15 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
         cur = conn.cursor()
 
         # 0. Do only known values exist for gender and nationality?
-        # TODO
+        for source in DATA:
+            for problem in data(source, not_gender=list(GENDERS),
+                                verbosity=verbosity):
+                print('ERROR: unknown gender in {!r}'.format(problem),
+                      file=sys.stderr)
+            for problem in data(source, not_nationality=NATIONALITIES.keys(),
+                                verbosity=verbosity):
+                print('ERROR: unknown nationality in {!r}'.format(problem),
+                      file=sys.stderr)
 
         # 1. Is the name unique?
         # Uniqueness constraints are not applied in the database, since there
