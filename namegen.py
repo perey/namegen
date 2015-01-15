@@ -216,15 +216,11 @@ def data(source, dbfilename=DEFAULT_DBFILE, randomise=False, limit=None,
         build_db(dbfilename=dbfilename, verbosity=verbosity)
     conn = sqlite3.connect(dbfilename)
     try:
-        # The context manager probably isn't necessary. We're only running a
-        # SELECT and so shouldn't be changing anything. Hence, the call to
-        # commit() that the context manager automatically performs shouldn't
-        # be necessary.
-        with conn:
-            cur = conn.cursor()
-            cur.execute(query_string, qparms)
-            results = map(nt._make, cur.fetchall())
+        cur = conn.cursor()
+        cur.execute(query_string, qparms)
+        results = map(nt._make, cur.fetchall())
     finally:
+        # Do not commit (as no changes ought to have been made). Just close it.
         conn.close()
     return results
 
@@ -428,7 +424,29 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
 
         # 2. Do all nationalities provide names for fields listed in their
         # format specifiers, and only for those fields?
-        # TODO
+        for nat, fmts in NATIONALITIES.items():
+            expected_sources = set(NAME_PARTS[part] for fmt in fmts
+                                   for part in fmt)
+            if verbosity:
+                print('Checking whether {} names appear in {}, and nowhere '
+                      'else...'.format(nat, ', '.join(expected_sources)))
+
+            for source in DATA:
+                cur = conn.cursor()
+                cur.execute('SELECT COUNT(*) AS Count'
+                            ' FROM "{}"'
+                            ' WHERE Nationality = ?'.format(source),
+                            (nat,))
+                count = cur.fetchone()['Count']
+                if verbosity > 1:
+                    print("\tFound {} names in '{}'.".format(count, source))
+
+                if source in expected_sources and count == 0:
+                    print("ERROR: no {} names found in source "
+                          "'{}'".format(nat, source), file=sys.stderr)
+                elif source not in expected_sources and count > 0:
+                    print("WARNING: found {} {} names in source "
+                          "'{}'".format(count, nat, source), file=sys.stderr)
 
         # 3. Do all family name counterparts form mutual cross-gender pairs?
         # TODO
@@ -450,10 +468,10 @@ def check_for_unknowns(conn, col, known_values, tables=TABLES):
                     ' GROUP BY {0}'.format(col, table))
         for row in cur:
             if row['Checked'] not in known_values:
-                print("ERROR: unknown {0} '{1[Checked]}' (appears {1[Count]} "
-                      "time{2} in table '{3}')".format(col.lower(), row,
-                                                       ('' if row['Count'] == 1
-                                                        else 's'), table),
+                print("WARNING: unknown {0} '{1[Checked]}' (appears "
+                      "{1[Count]} time{3} in table "
+                      "'{2}')".format(col.lower(), row, table,
+                                      ('' if row['Count'] == 1 else 's')),
                       file=sys.stderr)
 
 def check_for_uniqueness(conn, table, id_col, extra_joins=()):
