@@ -389,6 +389,8 @@ def build_db(dbfilename=DEFAULT_DBFILE, verbosity=0):
     finally:
         conn.close()
 
+TABLES = ('PersonalNames', 'AdditionalNames', 'FamilyNames', 'PMatronymics')
+
 def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
     '''Validate non-SQL database constraints.'''
     if not os.path.isfile(dbfilename):
@@ -396,107 +398,33 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
     conn = sqlite3.connect(dbfilename)
     conn.row_factory = sqlite3.Row
     try:
-        cur = conn.cursor()
-
         # 0. Do only known values exist for gender and nationality?
-        for source in DATA:
-            for problem in data(source, not_gender=list(GENDERS),
-                                verbosity=verbosity):
-                print('ERROR: unknown gender in {!r}'.format(problem),
-                      file=sys.stderr)
-            for problem in data(source, not_nationality=NATIONALITIES.keys(),
-                                verbosity=verbosity):
-                print('ERROR: unknown nationality in {!r}'.format(problem),
-                      file=sys.stderr)
+        if verbosity:
+            print('Checking for unknown genders...')
+        check_for_unknowns(conn, 'Gender', GENDERS)
+        if verbosity:
+            print('Checking for unknown nationalities...')
+        check_for_unknowns(conn, 'Nationality', NATIONALITIES.keys())
 
-        # 1. Is the name unique?
-        # Uniqueness constraints are not applied in the database, since there
-        # are a few legitimate reasons for a record to duplicate some fields of
-        # another record (e.g. different Japanese readings). For our purposes,
-        # two names are duplicates if they are from the same nationality, and
-        # are written the same in their native script.
-
-        # 1a. Are personal names unique?
+        # 1. Is each name unique?
         if verbosity:
             print('Checking personal names for uniqueness...')
-        cur.execute('SELECT p1.Name as Name'
-                    ' , p1.Romanisation as RomA'
-                    ' , p2.Romanisation as RomB'
-                    ' , p1.Gender as GenA'
-                    ' , p2.Gender as GenB'
-                    ' , p1.Nationality as Nat'
-                    ' FROM PersonalNames p1 JOIN PersonalNames p2'
-                    '  ON p1.Name = p2.Name AND'
-                    '     p1.Nationality = p2.Nationality AND'
-                    '     p1.PersonalNameID < p2.PersonalNameID')
-        for row in cur:
-            show_duplicate_warning(row, ('Rom', 'Gen'),
-                                   ('romanised as', 'gender'))
+        check_for_uniqueness(conn, 'PersonalNames', 'PersonalNameID')
 
-        # 1b. Are additional names unique?
         if verbosity:
             print('Checking additional names for uniqueness...')
-        cur.execute('SELECT a1.Name as Name'
-                    ' , a1.Romanisation as RomA'
-                    ' , a2.Romanisation as RomB'
-                    ' , a1.Gender as GenA'
-                    ' , a2.Gender as GenB'
-                    ' , a1.Nationality as Nat'
-                    ' FROM AdditionalNames a1 JOIN AdditionalNames a2'
-                    '  ON a1.Name = a2.Name AND'
-                    '     a1.Nationality = a2.Nationality AND'
-                    '     a1.AdditionalNameID < a2.AdditionalNameID')
-        for row in cur:
-            show_duplicate_warning(row, ('Rom', 'Gen'),
-                                   ('romanised as', 'gender'))
+        check_for_uniqueness(conn, 'AdditionalNames', 'AdditionalNameID')
 
-        # 1c. Are family names unique?
         if verbosity:
             print('Checking family names for uniqueness...')
-        cur.execute('SELECT f1.Name as Name'
-                    ' , f1.Romanisation as RomA'
-                    ' , f2.Romanisation as RomB'
-                    ' , f1.Gender as GenA'
-                    ' , f2.Gender as GenB'
-                    ' , fc1.Name as CtpA'
-                    ' , fc2.Name as CtpB'
-                    ' , f1.Nationality as Nat'
-                    ' FROM FamilyNames f1'
-                    '  JOIN FamilyNames f2'
-                    '   ON f1.Name = f2.Name AND'
-                    '      f1.Nationality = f2.Nationality AND'
-                    '      f1.FamilyNameID < f2.FamilyNameID'
-                    '  JOIN FamilyNames fc1'
-                    '   ON f1.CounterpartID = fc1.FamilyNameID'
-                    '  JOIN FamilyNames fc2'
-                    '   ON f2.CounterpartID = fc2.FamilyNameID')
-        for row in cur:
-            show_duplicate_warning(row, ('Rom', 'Gen', 'Ctp'),
-                                   ('romanised as', 'gender', 'counterpart'))
-
-        # 1d. Are patro-/matronymics unique?
+        check_for_uniqueness(conn, 'FamilyNames', 'FamilyNameID',
+                             (('FamilyNames', 'Name', 'Ctp', 'counterpart',
+                               'CounterpartID', 'FamilyNameID'),))
         if verbosity:
-            print('Checking patro-/matronymics names for uniqueness...')
-        cur.execute('SELECT nym1.Name as Name'
-                    ' , nym1.Romanisation as RomA'
-                    ' , nym2.Romanisation as RomB'
-                    ' , nym1.Gender as GenA'
-                    ' , nym2.Gender as GenB'
-                    ' , pn1.Name as FromA'
-                    ' , pn2.Name as FromB'
-                    ' , nym1.Nationality as Nat'
-                    ' FROM PMatronymics nym1'
-                    '  JOIN PMatronymics nym2'
-                    '   ON nym1.Name = nym2.Name AND'
-                    '      nym1.Nationality = nym2.Nationality AND'
-                    '      nym1.PMatronymicID < nym2.PMatronymicID'
-                    '  JOIN PersonalNames pn1'
-                    '   ON nym1.FromPersonalNameID = pn1.PersonalNameID'
-                    '  JOIN PersonalNames pn2'
-                    '   ON nym2.FromPersonalNameID = pn2.PersonalNameID')
-        for row in cur:
-            show_duplicate_warning(row, ('Rom', 'Gen', 'From'),
-                                   ('romanised as', 'gender', 'source name'))
+            print('Checking patro-/matronymics for uniqueness...')
+        check_for_uniqueness(conn, 'PMatronymics', 'PMatronymicID',
+                             (('PersonalNames', 'Name', 'From', 'source name',
+                               'FromPersonalNameID', 'PersonalNameID'),))
 
         # 2. Do all nationalities provide names for fields listed in their
         # format specifiers, and only for those fields?
@@ -512,40 +440,82 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
         # Do not commit! No changes should have been made anyway.
         conn.close()
 
-def show_duplicate_warning(row, compare_cols, compare_labels=None):
-    '''Format a duplicate-row warning and print it to sys.stderr.
+def check_for_unknowns(conn, col, known_values, tables=TABLES):
+    '''Check the database for unknown values in a given column.'''
+    cur = conn.cursor()
 
-    Keyword arguments:
-        row -- A mapping (such as a row from the sqlite3.Row factory).
-            The mapping must have at least the keys 'Name', 'Nat', and
-            'RomA'.
-        compare_cols -- A sequence of strings that indicate pairs of
-            keys in row; the keys are formed by appending 'A' and 'B' to
-            each string. These values may be different even though the
-            rows are considered duplicates.
-        compare_labels -- An optional sequence giving a label for each
-            string in compare_cols.
+    for table in tables:
+        cur.execute('SELECT {0} AS Checked, COUNT(Name) AS Count'
+                    ' FROM {1}'
+                    ' GROUP BY {0}'.format(col, table))
+        for row in cur:
+            if row['Checked'] not in known_values:
+                print("ERROR: unknown {0} '{1[Checked]}' (appears {1[Count]} "
+                      "time{2} in table '{3}')".format(col.lower(), row,
+                                                       ('' if row['Count'] == 1
+                                                        else 's'), table),
+                      file=sys.stderr)
+
+def check_for_uniqueness(conn, table, id_col, extra_joins=()):
+    '''Check that all rows in a given table are unique.
+
+    Unique, in this instance, means that no two rows list the same name
+    from the same nationality. The database does not enforce this as a
+    uniqueness constraint anywhere, since there are a few legitimate
+    reasons for two records to duplicate these fields (e.g. different
+    Japanese readings).
 
     '''
-    if compare_labels is None:
-        compare_labels = compare_cols
-    mismatches = []
-    for label, col in zip(compare_labels, compare_cols):
-        if row[col + 'A'] != row[col + 'B']:
-            mismatches.append("{} '{}' vs. '{}'".format(label,
-                                                        row[col + 'A'],
-                                                        row[col + 'B']))
-    if len(mismatches) == 0:
-        print("WARNING: {0[Nat]} name '{0[Name]}'{1} has multiple "
-              "entries".format(row,
-                               '' if row['RomA'] == '' else
-                               " ('{}')".format(row['RomA'])),
-              file=sys.stderr)
-    else:
-        print("WARNING: {0[Nat]} name '{0[Name]}' has multiple "
-              "similar entries ({1})".format(row,
-                                             ', '.join(mismatches)),
-              file=sys.stderr)
+    compare_cols = ['Rom', 'Gen']
+    compare_labels = ['romanised as', 'gender']
+
+    select_clause = ['SELECT tblA.Name AS Name'
+                     ' , tblA.Romanisation AS RomA'
+                     ' , tblB.Romanisation AS RomB'
+                     ' , tblA.Gender AS GenA'
+                     ' , tblB.Gender AS GenB'
+                     ' , tblA.Nationality as Nat']
+    from_clause = [' FROM {0} tblA'
+                   '  JOIN {0} tblB'
+                   '   ON tblA.Name = tblB.Name AND'
+                   '      tblA.Nationality = tblB.Nationality AND'
+                   '      tblA.{1} < tblB.{1}'.format(table, id_col)]
+    for n, (to_table, col, alias, natural_alias,
+            from_col, to_col) in enumerate(extra_joins):
+        select_clause.append(' , ex{0}A.{1} AS {2}A'
+                             ' , ex{0}B.{1} AS {2}B'.format(n, col, alias))
+        from_clause.append('  JOIN {0} ex{1}A'
+                           '   ON tblA.{2} = ex{1}A.{3}'
+                           '  JOIN {0} ex{1}B'
+                           '   ON tblB.{2} = ex{1}B.{3}'.format(to_table, n,
+                                                                from_col,
+                                                                to_col))
+        compare_cols.append(alias)
+        compare_labels.append(natural_alias)
+
+    # Execute the query.
+    cur = conn.cursor()
+    cur.execute(''.join(select_clause + from_clause))
+
+    # Warn about any duplicate rows.
+    for row in cur:
+        mismatches = []
+        for label, col in zip(compare_labels, compare_cols):
+            if row[col + 'A'] != row[col + 'B']:
+                mismatches.append("{} '{}' vs. '{}'".format(label,
+                                                            row[col + 'A'],
+                                                            row[col + 'B']))
+        if len(mismatches) == 0:
+            print("WARNING: {0[Nat]} name '{0[Name]}'{1} has multiple "
+                  "entries".format(row,
+                                   '' if row['RomA'] == '' else
+                                   " ('{}')".format(row['RomA'])),
+                  file=sys.stderr)
+        else:
+            print("WARNING: {0[Nat]} name '{0[Name]}' has multiple "
+                  "similar entries ({1})".format(row,
+                                                 ', '.join(mismatches)),
+                  file=sys.stderr)
 
 def generate(nationality=None, gender=None, verbosity=0):
     '''Generate a random name.'''
