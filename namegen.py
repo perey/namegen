@@ -452,7 +452,27 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
         # TODO
 
         # 4. Do gendered patro-/matronymics come in pairs?
-        # TODO
+        if verbosity:
+            print('Checking gendered patro-/matronymics for pair matches...')
+        cur = conn.cursor()
+        cur.execute("SELECT pmF.Name AS Fem"
+                    " , pmM.Name as Masc"
+                    " FROM PMatronymics pmF"
+                    "  FULL OUTER JOIN PMatronymics pmM"
+                    "   ON pmF.FromPersonalNameID = pmM.FromPersonalNameID AND"
+                    "      (pmF.Gender = ? OR pmM.Gender = ?)"
+                    " WHERE pmF.Name IS NULL OR pmM.Name IS NULL OR"
+                    "       pmF.Gender <> ? OR pmM.Gender <> ?",
+                    (FEMININE, MASCULINE, FEMININE, MASCULINE))
+        for row in cur:
+            if row['Fem'] is None:
+                assert row['Masc'] is not None
+                print("ERROR: masculine name '{}' lacks a feminine "
+                      "counterpart".format(row['Masc']), file=sys.stderr)
+            else:
+                assert row['Masc'] is None
+                print("ERROR: feminine name '{}' lacks a masculine "
+                      "counterpart".format(row['Masc']), file=sys.stderr)
 
     finally:
         # Do not commit! No changes should have been made anyway.
