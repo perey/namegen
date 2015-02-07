@@ -27,7 +27,7 @@ At present, Namegen has data files and support for these nationalities:
 * Russian (79 personal names with corresponding patronyms for masculine
   names, 56 family names with both masculine and feminine forms)
 * Spanish (58 personal names including two-part names, 41 family names)
-* Turkish (33 personal names, 10 family names)
+* Turkish (33 personal names, 20 family names)
 * Ukrainian (76 personal names with corresponding patronyms for masculine
   names, 50 family names)
 * Vietnamese (16 family names, 14 middle names, 63 personal names)
