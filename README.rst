@@ -10,13 +10,16 @@ At present, Namegen has data files and support for these nationalities:
 * Armenian (50 personal names, 33 family names)
 * Chinese (56 family names, 108 personal names) in simplified characters and in
   pinyin
+* Danish (72 personal names, 38 family names)
 * English (99 personal names, 71 family names)
 * Georgian (40 personal names, 22 family names)
 * Hungarian (21 family names, 52 personal names)
-* Icelandic (71 personal names and corresponding patro-/matronyms, plus 12 middle
-  names and 33 family names)
+* Icelandic (71 personal names and corresponding patro-/matronyms, plus 12
+  middle names and 33 family names)
 * Japanese (33 family names, 107 personal names, including different kanji and
   even different readings in rōmaji)
+* Latin (74 praenomina, 49 nomina in masculine and feminine forms, 71 cognomina
+  including 53 with both masculine and feminine forms)
 * Latvian (33 personal names, 21 family names with both masculine and feminine
   forms)
 * Polish (111 personal names, 53 family names including 30 with both masculine
