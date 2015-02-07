@@ -435,7 +435,7 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
                 cur = conn.cursor()
                 cur.execute('SELECT COUNT(*) AS Count'
                             ' FROM "{}"'
-                            ' WHERE Nationality = ?'.format(source),
+                            ' WHERE nationality = ?'.format(source),
                             (nat,))
                 count = cur.fetchone()['Count']
                 if verbosity > 1:
@@ -449,9 +449,72 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
                           "'{}'".format(count, nat, source), file=sys.stderr)
 
         # 3. Do all family name counterparts form mutual cross-gender pairs?
-        # TODO
+        if verbosity:
+            print('Checking whether surname counterparts match up...')
+        masc_to_fem = {}
+
+        cur = conn.cursor()
+        cur.execute('SELECT name'
+                    ' , gender'
+                    ' , counterpart'
+                    ' , nationality'
+                    ' FROM "family"'
+                    ' WHERE counterpart IS NOT NULL')
+        for row in cur:
+            if row['gender'] not in (MASCULINE, FEMININE):
+                print("ERROR: ungendered {0[nationality]} name '{0[name]}' "
+                      "has a counterpart ('{0[counterpart]}')".format(row),
+                      file=sys.stderr)
+            else:
+                masc, fem = ((row['name'], row['counterpart'])
+                             if row['gender'] == MASCULINE else
+                             (row['counterpart'], row['name']))
+                try:
+                    if masc_to_fem[masc] != fem:
+                        print("ERROR: mismatched {} surnames (masculine '{}', "
+                              "feminine '{}')".format(row['nationality'],
+                                                      masc, fem),
+                              file=sys.stderr)
+                except KeyError:
+                    masc_to_fem[masc] = fem
 
         # 4. Do gendered patro-/matronymics come in pairs?
+        if verbosity:
+            print('Checking whether gendered patro-/matronymics come in '
+                  'pairs...')
+        child_of = {}
+
+        cur = conn.cursor()
+        cur.execute('SELECT name'
+                    ' , gender'
+                    ' , from_'
+                    ' , nationality'
+                    ' FROM "pmatronymic"'
+                    ' WHERE gender <> ?', (NEUTER,))
+        for row in cur:
+            try:
+                child_names = child_of[(row['nationality'], row['from_'])]
+
+                try:
+                    child_names[row['gender']].append(row['name'])
+                except KeyError:
+                    child_names[row['gender']] = [row['name']]
+            except KeyError:
+                child_of[(row['nationality'],
+                          row['from_'])] = {row['gender']: [row['name']]}
+
+        for (nat, name), childnames in child_of.items():
+            for gword, gender in (('masculine', MASCULINE),
+                                  ('feminine', FEMININE)):
+                if len(childnames[gender]) == 0:
+                    print("ERROR: {} name '{}' lacks {} child "
+                          "name(s)".format(nat, name, gword), file=sys.stderr)
+                elif len(childnames[gender]) > 1:
+                    print("WARNING: {} name '{}' has multiple {} child "
+                          "name(s)".format(nat, name, gword), file=sys.stderr)
+
+        # 5. Do patro-/matronymics cover all names from nationalities that
+        # use them?
         # TODO
 
     finally:
