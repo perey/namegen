@@ -509,12 +509,10 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
                 if len(childnames[gender]) == 0:
                     print("ERROR: {} name '{}' lacks {} child "
                           "name(s)".format(nat, name, gword), file=sys.stderr)
-                elif len(childnames[gender]) > 1:
-                    print("WARNING: {} name '{}' has multiple {} child "
-                          "name(s)".format(nat, name, gword), file=sys.stderr)
 
         # 5. Do patro-/matronymics cover all names from nationalities that
         # use them?
+        # TODO
 
     finally:
         # Do not commit! No changes should have been made anyway.
