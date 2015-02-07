@@ -515,7 +515,6 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
 
         # 5. Do patro-/matronymics cover all names from nationalities that
         # use them?
-        # TODO
 
     finally:
         # Do not commit! No changes should have been made anyway.
