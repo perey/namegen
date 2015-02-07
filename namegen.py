@@ -81,21 +81,11 @@ NAT_ABBREVS = {'hy': 'Armenian', 'hye': 'Armenian', 'arm': 'Armenian',
                'uk': 'Ukrainian', 'ukr': 'Ukrainian',
                'vi': 'Vietnamese', 'vie': 'Vietnamese'}
 
-def nat_lookup(nat):
-    '''Get suitable values for nationality arguments.
-
-    If the argument is already a full nationality name (or if it is
-    unrecognised), it is returned unchanged. If it is an abbreviation,
-    the corresponding full name is returned.
-
-    '''
-    try:
-        # Is this an abbreviation?
-        nat = NAT_ABBREVS[nat]
-    except KeyError:
-        # No.
-        pass
-    return nat
+# Get suitable values for nationality arguments.
+# If the argument is already a full nationality name (or if it is
+# unrecognised), it is returned unchanged. If it is an abbreviation,
+# the corresponding full name is returned.
+nat_lookup = lambda nat: NAT_ABBREVS.get(nat, nat)
 
 # Data sources.
 # This dictionary matches identifiers to 2-tuples, containing a filename
