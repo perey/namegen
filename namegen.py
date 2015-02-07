@@ -24,9 +24,12 @@ __copyright__ = 'Copyright © 2014 Timothy Pederick'
 from argparse import ArgumentParser
 from collections import defaultdict, namedtuple
 import csv
-import os
+import os.path
 import random
+import sqlite3
 import sys
+
+DEFAULT_DBFILE = 'namegen.db'
 
 MASCULINE, FEMININE, NEUTER = GENDERS = 'MFN'
 
@@ -91,22 +94,21 @@ nat_lookup = lambda nat: NAT_ABBREVS.get(nat, nat)
 # This dictionary matches identifiers to 2-tuples, containing a filename
 # for a CSV file, and a tuple of headings, which are from the following list:
 # * 'name': The name in its native script.
-# * 'romanised': The romanised version of the name (empty if the native script
-#      is already Latin).
+# * 'romanisation': The name in the native script (empty if that is Latin).
 # * 'counterpart': A corresponding name with the opposite ('M'/'F') gender.
 # * 'from_': A name from which another (e.g. a patronym) is derived, as it
 #      appears in the 'name' field (i.e. in the native script).
 # * 'gender': 'M' for male names, 'F' for female, 'N' if applicable to either.
 # * 'nationality': A key from the NATIONALITIES mapping.
-DATA = {'personal': ('personal.csv', ('name', 'romanised', 'gender',
-                                      'nationality')),
-        'additional': ('additional.csv', ('name', 'romanised', 'gender',
-                                          'nationality')),
-        'family': ('family.csv', ('name', 'romanised', 'gender',
-                                  'counterpart', 'nationality')),
-        'pmatronymic': ('pmatronymic.csv', ('name', 'romanised', 'from_',
-                                            'gender', 'nationality'))
+DATA = {'personal': ('name', 'romanisation', 'gender', 'nationality'),
+        'additional': ('name', 'romanisation', 'gender', 'nationality'),
+        'family': ('name', 'romanisation', 'gender', 'counterpart',
+                   'nationality'),
+        'pmatronymic': ('name', 'romanisation', 'from_', 'gender',
+                        'nationality')
         }
+# Shorthand to construct a namedtuple class suitable for each data source.
+nt_for = lambda source: namedtuple('{}_tuple'.format(source), DATA[source])
 
 # Mapping of name parts to data sources.
 # This dictionary maps strings from the name-format tuples of NATIONALITIES to
@@ -123,193 +125,474 @@ NAME_PARTS = {'personal': 'personal',
               'patriname': 'family'
               }
 
-def data(source):
-    '''Read in data from the named source.'''
-    filename, headings = DATA[source]
-    nt = namedtuple('{}_tuple'.format(source), headings)
+def csvdata(source):
+    '''Read in data from the named CSV source file.'''
+    filename = source + '.csv'
+    nt = nt_for(source)
 
     return map(nt._make, csv.reader(open(filename, encoding='utf-8',
                                          newline='')))
 
-def validate_formats(verbose=False, out=sys.stdout, err=sys.stderr):
-    '''Validate name formats.'''
+def data(source, dbfilename=DEFAULT_DBFILE, randomise=False, limit=None,
+         verbosity=0, **kwargs):
+    '''Fetch data from the SQLite database.'''
+    nt = nt_for(source)
+
+    query, qparms = ['SELECT * FROM "{}"'.format(source)], []
+
+    # Handle additional keyword arguments as selection criteria (i.e. the WHERE
+    # clause): the argument name is the column and its value is what to match
+    # in that column. (A keyword prefixed with 'not_' means to return records
+    # that don't match instead.)
+    NEGATE_PREFIX = 'not_'
+    if len(kwargs) > 0:
+        query.append('WHERE')
+        where = []
+        for kw, val in kwargs.items():
+            # Are there multiple values specified?
+            val_is_multipart = not isinstance(val, str) # Strings don't count.
+            if val_is_multipart: # Actually only a maybe at this point.
+                try:
+                    # Non-sequence types choke on len()...
+                    len(val)
+                except TypeError:
+                    val_is_multipart = False
+
+            # Handle columns prefixed with 'not_'. Aside from looking for non-
+            # matches ('<>') instead of matches ('='), this also means joining
+            # each of multiple values (if present) with 'AND' rather than 'OR'.
+            if kw.startswith(NEGATE_PREFIX):
+                # Strip the 'not_' prefix and search for non-matches ('<>').
+                colname = kw[len(NEGATE_PREFIX):]
+                if val_is_multipart:
+                    unmatches = ('"{}" <> ?'.format(colname) for _ in val)
+                    where.append('(' + ' AND '.join(unmatches) + ')')
+                else:
+                    where.append('"{}" <> ?'.format(colname))
+
+            # Special handling for the 'gender' column (include neuter names
+            # when searching by gender), unless it's negated (handled above),
+            # we're looking for neuter names, or multiple values have been
+            # specified.
+            elif kw == 'gender' and not val_is_multipart and val is not NEUTER:
+                where.append('("{0}" = ? OR "{0}" = ?)'.format(kw))
+                qparms.append(NEUTER)
+
+            # Handle every other case.
+            else:
+                if val_is_multipart:
+                    matches = ('"{}" = ?'.format(kw) for _ in val)
+                    where.append('(' + ' OR '.join(matches) + ')')
+                else:
+                    where.append('"{}" = ?'.format(kw))
+
+            # Add the value(s) to the query parameters.
+            if val_is_multipart:
+                qparms.extend(val)
+            else:
+                qparms.append(val)
+        # Add the WHERE clause to the query.
+        query.append(' AND '.join(where))
+    if randomise:
+        query.append('ORDER BY random()')
+    if limit is not None:
+        query.append('LIMIT {}'.format(abs(int(limit))))
+
+    # Assemble the query.
+    query_string = ' '.join(query)
+    # Only display the query if extra verbosity was requested.
+    if verbosity > 1:
+        print("Executing query '{}' with parameters {!r}".format(query_string,
+                                                                 qparms))
+
+    # Pass it to the database.
+    if not os.path.isfile(dbfilename):
+        build_db(dbfilename=dbfilename, verbosity=verbosity)
+    conn = sqlite3.connect(dbfilename)
     try:
-        if not verbose:
-            # The verbose argument being False overrides the out argument.
-            out = open(os.devnull, mode='w')
-
-        for nationality, formats in NATIONALITIES.items():
-            print('Checking {} formats...'.format(nationality), file=out)
-
-            matches = {}
-            for fmt in formats:
-                for part in fmt:
-                    try:
-                        source = NAME_PARTS[part]
-                    except KeyError:
-                        print("ERROR: no source known for '{}'".format(part),
-                              file=err)
-                        continue
-
-                    # Count records that match this nationality...
-                    if source in matches:
-                        # ...but only the first time.
-                        continue
-
-                    matches[source] = 0
-                    gender_counts = {'M': 0, 'F': 0, 'N': 0}
-                    for record in data(source):
-                        if record.nationality == nationality:
-                            matches[source] += 1
-                            gender_counts[record.gender] += 1
-
-                    if matches[source] == 0:
-                        print("ERROR: no {} records in source "
-                              "'{}'".format(nationality, source), file=err)
-                    else:
-                        print("\tFound {0} {1} records in source "
-                              "'{2}' ({3[M]} masculine, {3[F]} feminine, "
-                              "{3[N]} both)".format(matches[source],
-                                                      nationality, source,
-                                                      gender_counts), file=out)
+        cur = conn.cursor()
+        cur.execute(query_string, qparms)
+        results = map(nt._make, cur.fetchall())
     finally:
-        # Close a substitute output stream we opened, but not one passed to us.
-        if not verbose:
-            out.close()
+        # Do not commit (as no changes ought to have been made). Just close it.
+        conn.close()
+    return results
 
-def validate_data(verbose=False, out=sys.stdout, err=sys.stderr):
-    '''Validate data sources.'''
+def build_db(dbfilename=DEFAULT_DBFILE, verbosity=0):
+    '''(Re)build the SQLite database from the CSV files.'''
+    if verbosity:
+        print("(Re)building database in file '{}'...".format(dbfilename))
+    # Connect to the database file.
+    conn = sqlite3.connect(dbfilename)
     try:
-        if not verbose:
-            # The verbose argument being False overrides the out argument.
-            out = open(os.devnull, mode='w')
+        with conn:
+            cur = conn.cursor()
+            # Remove views on tables.
+            cur.execute('DROP VIEW IF EXISTS personal')
+            cur.execute('DROP VIEW IF EXISTS additional')
+            cur.execute('DROP VIEW IF EXISTS family')
+            cur.execute('DROP VIEW IF EXISTS pmatronymic')
+            # Only detail individual steps if extra verbosity was requested.
+            if verbosity > 1:
+                print('\tViews cleared')
+            
+            # Create or replace tables.
+            cur.execute('DROP TABLE IF EXISTS PersonalNames')
+            cur.execute('CREATE TABLE PersonalNames'
+                        ' (PersonalNameID INTEGER PRIMARY KEY AUTOINCREMENT'
+                        ', Name TEXT NOT NULL'
+                        ', Romanisation TEXT'
+                        ', Gender TEXT NOT NULL'
+                        ', Nationality TEXT NOT NULL'
+                        ' )')
 
-        for (source, (filename, headings)) in DATA.items():
-            print("Checking data source '{}'...".format(source), file=out)
+            cur.execute('DROP TABLE IF EXISTS AdditionalNames')
+            cur.execute('CREATE TABLE AdditionalNames'
+                        ' (AdditionalNameID INTEGER PRIMARY KEY AUTOINCREMENT'
+                        ', Name TEXT NOT NULL'
+                        ', Romanisation TEXT'
+                        ', Gender TEXT NOT NULL'
+                        ', Nationality TEXT NOT NULL'
+                        ' )')
+
+            cur.execute('DROP TABLE IF EXISTS FamilyNames')
+            cur.execute('CREATE TABLE FamilyNames'
+                        ' (FamilyNameID INTEGER PRIMARY KEY AUTOINCREMENT'
+                        ', Name TEXT NOT NULL'
+                        ', Romanisation TEXT'
+                        ', Gender TEXT NOT NULL'
+                        ', CounterpartID INTEGER'
+                        '   REFERENCES FamilyNames ON DELETE CASCADE'
+                        ', Nationality TEXT NOT NULL'
+                        ' )')
+
+            cur.execute('DROP TABLE IF EXISTS PMatronymics')
+            cur.execute('CREATE TABLE PMatronymics'
+                        ' (PMatronymicID INTEGER PRIMARY KEY AUTOINCREMENT'
+                        ', Name TEXT NOT NULL'
+                        ', Romanisation TEXT'
+                        ', FromPersonalNameID INTEGER NOT NULL'
+                        '   REFERENCES PersonalNames ON DELETE CASCADE'
+                        ', Gender TEXT NOT NULL'
+                        ', Nationality TEXT NOT NULL'
+                        ' )')
+            # Only detail individual steps if extra verbosity was requested.
+            if verbosity > 1:
+                print('\tTables (re)built')
+
+            # Read data files and populate tables.
+            cur.executemany('INSERT INTO PersonalNames'
+                            ' (Name, Romanisation, Gender, Nationality)'
+                            ' VALUES (?, ?, ?, ?)', csvdata('personal'))
+            # Only detail individual steps if extra verbosity was requested.
+            if verbosity > 1:
+                print('\tPersonal names inserted')
+
+            cur.executemany('INSERT INTO AdditionalNames'
+                            ' (Name, Romanisation, Gender, Nationality)'
+                            ' VALUES (?, ?, ?, ?)', csvdata('additional'))
+            # Only detail individual steps if extra verbosity was requested.
+            if verbosity > 1:
+                print('\tAdditional names inserted')
+
+            for record in csvdata('family'):
+                cur.execute('INSERT INTO FamilyNames'
+                            ' (Name, Romanisation, Gender, Nationality)'
+                            ' VALUES (?, ?, ?, ?)', (record.name,
+                                                     record.romanisation,
+                                                     record.gender,
+                                                     record.nationality))
+            # Only detail individual steps if extra verbosity was requested.
+            if verbosity > 1:
+                print('\tFamily names inserted')
+            for record in csvdata('family'):
+                if record.counterpart != '':
+                    cur.execute('SELECT FamilyNameID'
+                                ' FROM FamilyNames'
+                                ' WHERE Name = ?', (record.name,))
+                    this_id = cur.fetchone()[0]
+                    cur.execute('SELECT FamilyNameID'
+                                ' FROM FamilyNames'
+                                ' WHERE Name = ?', (record.counterpart,))
+                    that_id = cur.fetchone()[0]
+                    cur.execute('UPDATE FamilyNames'
+                                ' SET CounterpartID = ?'
+                                ' WHERE FamilyNameID = ?', (that_id, this_id))
+            # Only detail individual steps if extra verbosity was requested.
+            if verbosity > 1:
+                print('\tFamily name gender counterparts matched up')
+
+            for record in csvdata('pmatronymic'):
+                cur.execute('SELECT PersonalNameID'
+                            ' FROM PersonalNames'
+                            ' WHERE Name = ?', (record.from_,))
+                try:
+                    from_id = cur.fetchone()[0]
+                except TypeError:
+                    print("Can't find name '{}'!".format(record.from_))
+                cur.execute('INSERT INTO PMatronymics'
+                            ' (Name, Romanisation, FromPersonalNameID,'
+                            '  Gender, Nationality)'
+                            ' VALUES (?, ?, ?, ?, ?)', (record.name,
+                                                        record.romanisation,
+                                                        from_id,
+                                                        record.gender,
+                                                        record.nationality))
+            # Only detail individual steps if extra verbosity was requested.
+            if verbosity > 1:
+                print('\tPatro-/matronymics inserted')
+
+            cur.execute('CREATE VIEW personal AS'
+                        ' SELECT pn.Name as name'
+                        '  , pn.Romanisation as romanisation'
+                        '  , pn.Gender as gender'
+                        '  , pn.Nationality as nationality'
+                        '  FROM PersonalNames pn')
+
+            cur.execute('CREATE VIEW additional AS'
+                        ' SELECT an.Name as name'
+                        '  , an.Romanisation as romanisation'
+                        '  , an.Gender as gender'
+                        '  , an.Nationality as nationality'
+                        '  FROM AdditionalNames an')
+
+            cur.execute('CREATE VIEW family AS'
+                        ' SELECT fn.Name as name'
+                        '  , fn.Romanisation as romanisation'
+                        '  , fn.Gender as gender'
+                        '  , cn.Name as counterpart'
+                        '  , fn.Nationality as nationality'
+                        '  FROM FamilyNames fn LEFT JOIN FamilyNames cn'
+                        '   ON fn.CounterpartID = cn.FamilyNameID')
+
+            cur.execute('CREATE VIEW pmatronymic AS'
+                        ' SELECT nym.Name as name'
+                        '  , nym.Romanisation as romanisation'
+                        '  , pn.Name as from_'
+                        '  , nym.Gender as gender'
+                        '  , nym.Nationality as nationality'
+                        '  FROM PMatronymics nym JOIN PersonalNames pn'
+                        '   ON nym.FromPersonalNameID = pn.PersonalNameID')
+            # Only detail individual steps if extra verbosity was requested.
+            if verbosity > 1:
+                print('\tViews created')
+    finally:
+        conn.close()
+
+TABLES = ('PersonalNames', 'AdditionalNames', 'FamilyNames', 'PMatronymics')
+
+def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
+    '''Validate non-SQL database constraints.'''
+    if not os.path.isfile(dbfilename):
+        build_db(dbfilename=dbfilename, verbosity=verbosity)
+    conn = sqlite3.connect(dbfilename)
+    conn.row_factory = sqlite3.Row
+    try:
+        # 0. Do only known values exist for gender and nationality?
+        if verbosity:
+            print('Checking for unknown genders...')
+        check_for_unknowns(conn, 'Gender', GENDERS)
+        if verbosity:
+            print('Checking for unknown nationalities...')
+        check_for_unknowns(conn, 'Nationality', NATIONALITIES.keys())
+
+        # 1. Is each name unique?
+        if verbosity:
+            print('Checking personal names for uniqueness...')
+        check_for_uniqueness(conn, 'PersonalNames', 'PersonalNameID')
+
+        if verbosity:
+            print('Checking additional names for uniqueness...')
+        check_for_uniqueness(conn, 'AdditionalNames', 'AdditionalNameID')
+
+        if verbosity:
+            print('Checking family names for uniqueness...')
+        check_for_uniqueness(conn, 'FamilyNames', 'FamilyNameID',
+                             (('FamilyNames', 'Name', 'Ctp', 'counterpart',
+                               'CounterpartID', 'FamilyNameID'),))
+        if verbosity:
+            print('Checking patro-/matronymics for uniqueness...')
+        check_for_uniqueness(conn, 'PMatronymics', 'PMatronymicID',
+                             (('PersonalNames', 'Name', 'From', 'source name',
+                               'FromPersonalNameID', 'PersonalNameID'),))
+
+        # 2. Do all nationalities provide names for fields listed in their
+        # format specifiers, and only for those fields?
+        for nat, fmts in NATIONALITIES.items():
+            expected_sources = set(NAME_PARTS[part] for fmt in fmts
+                                   for part in fmt)
+            if verbosity:
+                print('Checking whether {} names appear in {}, and nowhere '
+                      'else...'.format(nat, ', '.join(expected_sources)))
+
+            for source in DATA:
+                cur = conn.cursor()
+                cur.execute('SELECT COUNT(*) AS Count'
+                            ' FROM "{}"'
+                            ' WHERE nationality = ?'.format(source),
+                            (nat,))
+                count = cur.fetchone()['Count']
+                if verbosity > 1:
+                    print("\tFound {} names in '{}'.".format(count, source))
+
+                if source in expected_sources and count == 0:
+                    print("ERROR: no {} names found in source "
+                          "'{}'".format(nat, source), file=sys.stderr)
+                elif source not in expected_sources and count > 0:
+                    print("WARNING: found {} {} names in source "
+                          "'{}'".format(count, nat, source), file=sys.stderr)
+
+        # 3. Do all family name counterparts form mutual cross-gender pairs?
+        if verbosity:
+            print('Checking whether surname counterparts match up...')
+        masc_to_fem = {}
+
+        cur = conn.cursor()
+        cur.execute('SELECT name'
+                    ' , gender'
+                    ' , counterpart'
+                    ' , nationality'
+                    ' FROM "family"'
+                    ' WHERE counterpart IS NOT NULL')
+        for row in cur:
+            if row['gender'] not in (MASCULINE, FEMININE):
+                print("ERROR: ungendered {0[nationality]} name '{0[name]}' "
+                      "has a counterpart ('{0[counterpart]}')".format(row),
+                      file=sys.stderr)
+            else:
+                masc, fem = ((row['name'], row['counterpart'])
+                             if row['gender'] == MASCULINE else
+                             (row['counterpart'], row['name']))
+                try:
+                    if masc_to_fem[masc] != fem:
+                        print("ERROR: mismatched {} surnames (masculine '{}', "
+                              "feminine '{}')".format(row['nationality'],
+                                                      masc, fem),
+                              file=sys.stderr)
+                except KeyError:
+                    masc_to_fem[masc] = fem
+
+        # 4. Do gendered patro-/matronymics come in pairs?
+        if verbosity:
+            print('Checking whether gendered patro-/matronymics come in '
+                  'pairs...')
+        child_of = {}
+
+        cur = conn.cursor()
+        cur.execute('SELECT name'
+                    ' , gender'
+                    ' , from_'
+                    ' , nationality'
+                    ' FROM "pmatronymic"'
+                    ' WHERE gender <> ?', (NEUTER,))
+        for row in cur:
             try:
-                datasource = data(source)
-            except OSError as ose:
-                print("ERROR opening '{}' "
-                      "(Python says '{!s}')".format(filename, ose),
-                      file=err)
-                continue
-            except ValueError as ve:
-                print("ERROR (with encoding?) opening '{}' "
-                      "(Python says '{!s}')".format(filename, ve),
-                      file=err)
-                continue
-            except Exception as e:
-                print("ERROR (dunno what) opening or reading '{}' "
-                      "(Python says '{!s}')".format(filename, e),
-                      file=err)
-                continue
-
-            seen = {}
-
-            print('\t', end='', file=out)
-            for n, record in enumerate(datasource):
-                # Only indicate progress every ten records.
-                if (n + 1) % 10 == 0:
-                    print('{} records... '.format(n + 1), end='', file=out)
-
-                # Is the record unique? By "unique", we mean the name (in its
-                # native script) has not been previously seen, for the same
-                # gender and same nationality, and (if a patro- or matronymic)
-                # with the same source name.
-                recordkey = (record.name, record.gender, record.nationality,
-                             ('' if not hasattr(record, 'from_') else
-                              record.from_))
-                try:
-                    existing = seen[recordkey]
-                except KeyError:
-                    # Yes it is.
-                    seen[recordkey] = record
-                else:
-                    # No it's not.
-                    if record == existing:
-                        # The exact same record already exists.
-                        print("WARNING: record identical to '{!r}' "
-                              "already exists".format(record), file=err)
-                    else:
-                        # The same name is already recorded, but it differs in
-                        # some aspect; there might be a legitimate reason
-                        # (e.g. different Japanese readings), or it might be an
-                        # error (e.g. different Romanisations, one right and
-                        # the other wrong).
-                        print("WARNING: record matching '{!r}' exists "
-                              "with different values "
-                              "('{!r}')".format(record, existing),
-                              file=err)
+                child_names = child_of[(row['nationality'], row['from_'])]
 
                 try:
-                    formats = NATIONALITIES[record.nationality]
+                    child_names[row['gender']].append(row['name'])
                 except KeyError:
-                    print("WARNING: unknown nationality in record "
-                          "'{!r}'".format(record))
-                else:
-                    if not any((NAME_PARTS[part] == source)
-                               for fmt in formats
-                               for part in fmt):
-                        print("WARNING: no {} name format uses data from "
-                              "'{}'".format(record.nationality, source),
-                              file=err)
-            print('{} records.'.format(n + 1), end='\n\n', file=out)
-    finally:
-        # Close a substitute output stream we opened, but not one passed to us.
-        if not verbose:
-            out.close()
+                    child_names[row['gender']] = [row['name']]
+            except KeyError:
+                child_of[(row['nationality'],
+                          row['from_'])] = {row['gender']: [row['name']]}
 
-def validate_pmatronyms(verbose=False, out=sys.stdout, err=sys.stderr):
-    '''Validate patro- and matronymic names.'''
-    # Only these languages will give warnings if matronymics are not found for
-    # female names.
-    needs_matro = ['Icelandic']
+        for (nat, name), childnames in child_of.items():
+            for gword, gender in (('masculine', MASCULINE),
+                                  ('feminine', FEMININE)):
+                if len(childnames[gender]) == 0:
+                    print("ERROR: {} name '{}' lacks {} child "
+                          "name(s)".format(nat, name, gword), file=sys.stderr)
 
-    try:
-        if not verbose:
-            # The verbose argument being False overrides the out argument.
-            out = open(os.devnull, mode='w')
-
-        pmats_by_nat = defaultdict(list)
-        for record in data('pmatronymic'):
-            pmats_by_nat[record.nationality].append((record.name,
-                                                     record.from_))
-
-        names_by_nat = defaultdict(dict)
-        for record in data('personal'):
-            if record.nationality not in pmats_by_nat:
-                continue
-            names_by_nat[record.nationality][record.name] = (record.gender, [])
-
-        for nat, pmats in pmats_by_nat.items():
-            for pmat, from_ in pmats:
-                try:
-                    names_by_nat[nat][from_][1].append(pmat)
-                except KeyError:
-                    print("WARNING: '{}' is not in the list of {} "
-                          "personal names".format(from_, nat),
-                          file=err)
-        for nat, names in names_by_nat.items():
-            print('Checking {} patro-/matronyms...'.format(nat), file=out)
-            for name, (gender, pmats) in names.items():
-                if (gender != FEMININE or nat in needs_matro):
-                    if len(pmats) == 0:
-                        print("WARNING: {} name '{}' has no {}atronymic "
-                              "form".format(nat, name,
-                                            ('m' if gender == FEMININE else
-                                             'p')), file=err)
-                    else:
-                        print('\t{}:'.format(name), ', '.join(pmats), file=out)
+        # 5. Do patro-/matronymics cover all names from nationalities that
+        # use them?
+        # TODO
 
     finally:
-        # Close a substitute output stream we opened, but not one passed to us.
-        if not verbose:
-            out.close()
+        # Do not commit! No changes should have been made anyway.
+        conn.close()
 
-def generate(nationality=None, gender=None):
+def check_for_unknowns(conn, col, known_values, tables=TABLES):
+    '''Check the database for unknown values in a given column.'''
+    cur = conn.cursor()
+
+    for table in tables:
+        cur.execute('SELECT {0} AS Checked, COUNT(Name) AS Count'
+                    ' FROM {1}'
+                    ' GROUP BY {0}'.format(col, table))
+        for row in cur:
+            if row['Checked'] not in known_values:
+                print("WARNING: unknown {0} '{1[Checked]}' (appears "
+                      "{1[Count]} time{3} in table "
+                      "'{2}')".format(col.lower(), row, table,
+                                      ('' if row['Count'] == 1 else 's')),
+                      file=sys.stderr)
+
+def check_for_uniqueness(conn, table, id_col, extra_joins=()):
+    '''Check that all rows in a given table are unique.
+
+    Unique, in this instance, means that no two rows list the same name
+    from the same nationality. The database does not enforce this as a
+    uniqueness constraint anywhere, since there are a few legitimate
+    reasons for two records to duplicate these fields (e.g. different
+    Japanese readings).
+
+    '''
+    compare_cols = ['Rom', 'Gen']
+    compare_labels = ['romanised as', 'gender']
+
+    select_clause = ['SELECT tblA.Name AS Name'
+                     ' , tblA.Romanisation AS RomA'
+                     ' , tblB.Romanisation AS RomB'
+                     ' , tblA.Gender AS GenA'
+                     ' , tblB.Gender AS GenB'
+                     ' , tblA.Nationality as Nat']
+    from_clause = [' FROM {0} tblA'
+                   '  JOIN {0} tblB'
+                   '   ON tblA.Name = tblB.Name AND'
+                   '      tblA.Nationality = tblB.Nationality AND'
+                   '      tblA.{1} < tblB.{1}'.format(table, id_col)]
+    for n, (to_table, col, alias, natural_alias,
+            from_col, to_col) in enumerate(extra_joins):
+        select_clause.append(' , ex{0}A.{1} AS {2}A'
+                             ' , ex{0}B.{1} AS {2}B'.format(n, col, alias))
+        from_clause.append('  JOIN {0} ex{1}A'
+                           '   ON tblA.{2} = ex{1}A.{3}'
+                           '  JOIN {0} ex{1}B'
+                           '   ON tblB.{2} = ex{1}B.{3}'.format(to_table, n,
+                                                                from_col,
+                                                                to_col))
+        compare_cols.append(alias)
+        compare_labels.append(natural_alias)
+
+    # Execute the query.
+    cur = conn.cursor()
+    cur.execute(''.join(select_clause + from_clause))
+
+    # Warn about any duplicate rows.
+    for row in cur:
+        mismatches = []
+        for label, col in zip(compare_labels, compare_cols):
+            if row[col + 'A'] != row[col + 'B']:
+                mismatches.append("{} '{}' vs. '{}'".format(label,
+                                                            row[col + 'A'],
+                                                            row[col + 'B']))
+        if len(mismatches) == 0:
+            print("WARNING: {0[Nat]} name '{0[Name]}'{1} has multiple "
+                  "entries".format(row,
+                                   '' if row['RomA'] == '' else
+                                   " ('{}')".format(row['RomA'])),
+                  file=sys.stderr)
+        else:
+            print("WARNING: {0[Nat]} name '{0[Name]}' has multiple "
+                  "similar entries ({1})".format(row,
+                                                 ', '.join(mismatches)),
+                  file=sys.stderr)
+
+def generate(nationality=None, gender=None, verbosity=0):
     '''Generate a random name.'''
-    nationality = (random.choice(list(NATIONALITIES))
-                   if nationality is None else nat_lookup(nationality))
+    nationality = (nat_lookup(nationality) if nationality is not None else
+                   random.choice(list(NATIONALITIES)))
     if gender is None:
         gender = random.choice([MASCULINE, FEMININE])
 
@@ -318,35 +601,31 @@ def generate(nationality=None, gender=None):
     latin_parts = []
     original_parts = []
 
-    matching = {}
     for part in fmt:
         source = NAME_PARTS[part]
-        if source not in matching:
-            matching[source] = []
-            for record in data(source):
-                if (record.nationality == nationality and
-                    record.gender in (gender, NEUTER)):
-                    matching[source].append((record.name, record.romanised))
+        
+        random_choices = data(source, gender=gender, nationality=nationality,
+                              randomise=True, limit=1, verbosity=verbosity)
+        # TODO: Don't double up on names if one part is used more than once.
 
-        pos = random.randrange(len(matching[source]))
-        # Don't reselect this name for the same person--pop() it from the list.
-        name, romanised = matching[source].pop(pos)
-        if romanised == '':
-            latin_parts.append(name)
+        chosen = next(random_choices)
+        if chosen.romanisation == '':
+            latin_parts.append(chosen.name)
         else:
-            original_parts.append(name)
-            latin_parts.append(romanised)
+            original_parts.append(chosen.romanisation)
+            latin_parts.append(chosen.name)
 
     return (' '.join(latin_parts), ' '.join(original_parts),
             gender, nationality)
 
-def main():
-    '''Handle command-line options and run the name generator.'''
+def argparser():
+    '''Construct the command-line argument parser.'''
     parser = ArgumentParser(description='Generate one or more random names.')
     parser.add_argument('--version', action='version',
                         version='%(prog)s {}'.format(__version__))
-    parser.add_argument('-v', '--verbose', action='store_true',
-                        help='show detailed information')
+    parser.add_argument('-v', '--verbose', action='count', default=0,
+                        help=('show detailed information (may be specified '
+                              'twice for extra detail)'))
 
     action = parser.add_mutually_exclusive_group()
     action.add_argument('-G', '--generate', action='store_const',
@@ -354,24 +633,34 @@ def main():
                         help='generate a name (the default action)')
     action.add_argument('-V', '--validate', action='store_const',
                         const='validate', dest='action',
-                        help=('perform validation of data files (instead of '
+                        help=('rebuild and validate the database (instead of '
                               'generating a name)'))
+    parser.add_argument('--skip-rebuild', action='store_true',
+                        help=("don't rebuild the database when performing "
+                              "validation"))
 
-    parser.add_argument('-c', '--count', type=int, default=1,
-                        help=('the number of names to generate '
-                              '(defaults to 1)'))
-    parser.add_argument('-n', '--nat', help=('the nationality of the name(s) '
-                                             'to be generated; either a full '
-                                             'name, such as "Russian", or an '
-                                             'ISO 639 two- or three-letter '
-                                             'code, such as "ru"'))
-    parser.add_argument('-g', '--gender', choices=[MASCULINE, FEMININE],
-                        help='the gender of the name(s) generated')
-    args = parser.parse_args()
+    gen_args = parser.add_argument_group('Generation options')
+    gen_args.add_argument('-c', '--count', type=int, default=1,
+                          help=('the number of names to generate (defaults '
+                                'to 1)'))
+    gen_args.add_argument('-n', '--nat', help=('the nationality of the '
+                                               'name(s) to be generated; '
+                                               'either a full name, such as '
+                                               '"Russian", or an ISO 639 two- '
+                                               'or three-letter code, such as '
+                                               '"ru"'))
+    gen_args.add_argument('-g', '--gender', choices=[MASCULINE, FEMININE],
+                          help='the gender of the name(s) generated')
+
+    return parser
+
+def main():
+    '''Handle command-line options and run the name generator.'''
+    args = argparser().parse_args()
     if args.action == 'validate':
-        validate_data(verbose=args.verbose)
-        validate_formats(verbose=args.verbose)
-        validate_pmatronyms(verbose=args.verbose)
+        if not args.skip_rebuild:
+            build_db(verbosity=args.verbose)
+        validate_data(verbosity=args.verbose)
     else:
         if args.verbose:
             print('Generating {} random {}{}'
@@ -385,7 +674,8 @@ def main():
         for _ in range(args.count):
             (name, original,
              gender, nationality) = generate(nationality=args.nat,
-                                             gender=args.gender)
+                                             gender=args.gender,
+                                             verbosity=args.verbose)
             print(name, end='')
             if original != '':
                 print(' ({})'.format(original), end='')
