@@ -604,8 +604,8 @@ def generate(nationality=None, gender=None, verbosity=0):
 
     fmt = random.choice(NATIONALITIES[nationality])
 
-    latin_parts = []
     original_parts = []
+    latin_parts = []
 
     for part in fmt:
         source = NAME_PARTS[part]
@@ -615,13 +615,11 @@ def generate(nationality=None, gender=None, verbosity=0):
         # TODO: Don't double up on names if one part is used more than once.
 
         chosen = next(random_choices)
-        if chosen.romanisation == '':
-            latin_parts.append(chosen.name)
-        else:
-            original_parts.append(chosen.romanisation)
-            latin_parts.append(chosen.name)
+        original_parts.append(chosen.name)
+        if chosen.romanisation != '':
+            latin_parts.append(chosen.romanisation)
 
-    return (' '.join(latin_parts), ' '.join(original_parts),
+    return (' '.join(original_parts), ' '.join(latin_parts),
             gender, nationality)
 
 def argparser():
@@ -678,13 +676,13 @@ def main():
                                       nat_lookup(args.nat) + ' '),
                                      's' if args.count > 1 else ''))
         for _ in range(args.count):
-            (name, original,
+            (name, romanised,
              gender, nationality) = generate(nationality=args.nat,
                                              gender=args.gender,
                                              verbosity=args.verbose)
             print(name, end='')
-            if original != '':
-                print(' ({})'.format(original), end='')
+            if romanised != '':
+                print(' ({})'.format(romanised), end='')
             if args.verbose:
                 print(' ({}, {})'.format(gender, nationality), end='')
             print()
