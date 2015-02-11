@@ -660,9 +660,9 @@ def argparser():
 
     return parser
 
-def main(args=None):
+def main():
     '''Handle command-line options and run the name generator.'''
-    args = argparser().parse_args(args)
+    args = argparser().parse_args()
     if args.action == 'validate':
         if not args.skip_rebuild:
             build_db(verbosity=args.verbose)
@@ -690,4 +690,4 @@ def main(args=None):
             print()
 
 if __name__ == '__main__':
-    main(['-v',])
+    main()
