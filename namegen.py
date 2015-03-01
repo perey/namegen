@@ -174,6 +174,9 @@ def data(source, dbfilename=DEFAULT_DBFILE, randomise=False, limit=None,
                 # Strip the 'not_' prefix and search for non-matches ('<>').
                 colname = kw[len(NEGATE_PREFIX):]
                 if val_is_multipart:
+                    if len(val) == 0:
+                        # Empty list. Abort! Abort!
+                        continue
                     unmatches = ('"{}" <> ?'.format(colname) for _ in val)
                     where.append('(' + ' AND '.join(unmatches) + ')')
                 else:
@@ -599,30 +602,55 @@ def check_for_uniqueness(conn, table, id_col, extra_joins=()):
                   file=sys.stderr)
 
 def generate(nationality=None, gender=None, verbosity=0):
-    '''Generate a random name.'''
+    '''Generate a random name.
+
+    Keyword arguments:
+        nationality, gender -- Specify values for these two name
+            parameters. If omitted, random values are chosen.
+        verbosity -- A numeric value that sets the amount of diagnostic
+            detail dumped to standard output. The default is 0, for no
+            output.
+
+    '''
+    # If given a nationality, use it (possibly after converting it from an
+    # abbreviation); otherwise, randomly choose one.
     nationality = (nat_lookup(nationality) if nationality is not None else
                    random.choice(list(NATIONALITIES)))
+    # If given a gender, use it; otherwise, randomly choose one.
     if gender is None:
         gender = random.choice([MASCULINE, FEMININE])
 
+    # Randomly choose a format out of those offered by the nationality.
     fmt = random.choice(NATIONALITIES[nationality])
 
+    # Prepare to store the resulting name, in the original script and (where
+    # relevant) in Latin transcription.
     original_parts = []
-    latin_parts = []
+    romanised_parts = []
 
+    # Keep track of names we've seen, indexed by name part, to avoid giving
+    # repetitive names.
+    seen_names = defaultdict(list)
+
+    # Iterate over the different name parts in the chosen format.
     for part in fmt:
+        # Look up the data source for this name part.
         source = NAME_PARTS[part]
-        
+        # Grab one random entry from the database.
         random_choices = data(source, gender=gender, nationality=nationality,
-                              randomise=True, limit=1, verbosity=verbosity)
-        # TODO: Don't double up on names if one part is used more than once.
-
+                              not_name=seen_names[part], randomise=True,
+                              limit=1, verbosity=verbosity)
+        # Use the first (and only) result that the database returned.
         chosen = next(random_choices)
+        # Add it to our seen list.
+        seen_names[part].append(chosen.name)
+
+        # And add it to the result.
         original_parts.append(chosen.name)
         if chosen.romanisation != '':
-            latin_parts.append(chosen.romanisation)
+            romanised_parts.append(chosen.romanisation)
 
-    return (' '.join(original_parts), ' '.join(latin_parts),
+    return (' '.join(original_parts), ' '.join(romanised_parts),
             gender, nationality)
 
 def argparser():
