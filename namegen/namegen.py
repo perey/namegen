@@ -29,7 +29,10 @@ import random
 import sqlite3
 import sys
 
-DEFAULT_DBFILE = 'namegen.db'
+DATA_DIR = 'dat'
+if not os.path.isdir(DATA_DIR):
+    raise IOError('data directory not found')
+DEFAULT_DBFILE = os.path.join(DATA_DIR, 'namegen.db')
 
 MASCULINE, FEMININE, NEUTER = GENDERS = 'MFN'
 
@@ -136,7 +139,7 @@ NAME_PARTS = {'personal': 'personal',
 
 def csvdata(source):
     '''Read in data from the named CSV source file.'''
-    filename = source + '.csv'
+    filename = os.path.join(DATA_DIR, source + '.csv')
     nt = nt_for(source)
 
     return map(nt._make, csv.reader(open(filename, encoding='utf-8',
