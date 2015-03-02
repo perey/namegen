@@ -72,9 +72,9 @@ Generation parameters
 Copyright and Licence
 =====================
 
-The Namegen module is copyright © 2014 Timothy Pederick. It is licensed under
-the GNU Affero General Public License, either version 3, or (at your option)
-any later version.
+Namegen is copyright © 2014, 2015 Timothy Pederick. It is licensed under the
+GNU Affero General Public License, either version 3, or (at your option) any
+later version.
 
 The author disclaims any copyright in the CSV data files, considering them
 mere collections of fact. For the avoidance of doubt, if any copyright is held 
