@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 '''Access the namechoose data files.'''
 # Copyright © 2014, 2015 Timothy Pederick.
@@ -18,6 +19,9 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with namechoose.  If not, see <http://www.gnu.org/licenses/>.
 
+# __future__ features.
+from __future__ import print_function
+
 # Standard library imports.
 from collections import namedtuple
 import csv
@@ -29,7 +33,7 @@ __all__ = ['MASCULINE', 'FEMININE', 'NEUTER', 'GENDERS',
            'getdata']
 
 # Symbolic constants for genders.
-MASCULINE, FEMININE, NEUTER = GENDERS = 'MFN'
+MASCULINE, FEMININE, NEUTER = GENDERS = u'MFN'
 
 # Locate the data files.
 THIS_DIR = os.path.dirname(__file__)
@@ -138,8 +142,8 @@ def getdata(source, dbfilename=DEFAULT_DBFILE, randomise=False, limit=None,
     query_string = ' '.join(query)
     # Only display the query if extra verbosity was requested.
     if verbosity > 1:
-        print("Executing query '{}' with parameters {!r}".format(query_string,
-                                                                 qparms))
+        print(u"Executing query '{}' with parameters {!r}".format(query_string,
+                                                                  qparms))
 
     # Pass it to the database.
     if not os.path.isfile(dbfilename):
@@ -157,7 +161,7 @@ def getdata(source, dbfilename=DEFAULT_DBFILE, randomise=False, limit=None,
 def build_db(dbfilename=DEFAULT_DBFILE, verbosity=0):
     '''(Re)build the SQLite database from the CSV files.'''
     if verbosity:
-        print("(Re)building database in file '{}'...".format(dbfilename))
+        print(u"(Re)building database in file '{}'...".format(dbfilename))
     # Connect to the database file.
     conn = sqlite3.connect(dbfilename)
     try:
@@ -170,7 +174,7 @@ def build_db(dbfilename=DEFAULT_DBFILE, verbosity=0):
             cur.execute('DROP VIEW IF EXISTS pmatronymic')
             # Only detail individual steps if extra verbosity was requested.
             if verbosity > 1:
-                print('\tViews cleared')
+                print(u'\tViews cleared')
             
             # Create or replace tables.
             cur.execute('DROP TABLE IF EXISTS PersonalNames')
@@ -214,7 +218,7 @@ def build_db(dbfilename=DEFAULT_DBFILE, verbosity=0):
                         ' )')
             # Only detail individual steps if extra verbosity was requested.
             if verbosity > 1:
-                print('\tTables (re)built')
+                print(u'\tTables (re)built')
 
             # Read data files and populate tables.
             cur.executemany('INSERT INTO PersonalNames'
@@ -222,14 +226,14 @@ def build_db(dbfilename=DEFAULT_DBFILE, verbosity=0):
                             ' VALUES (?, ?, ?, ?)', csvdata('personal'))
             # Only detail individual steps if extra verbosity was requested.
             if verbosity > 1:
-                print('\tPersonal names inserted')
+                print(u'\tPersonal names inserted')
 
             cur.executemany('INSERT INTO AdditionalNames'
                             ' (Name, Romanisation, Gender, Nationality)'
                             ' VALUES (?, ?, ?, ?)', csvdata('additional'))
             # Only detail individual steps if extra verbosity was requested.
             if verbosity > 1:
-                print('\tAdditional names inserted')
+                print(u'\tAdditional names inserted')
 
             for record in csvdata('family'):
                 cur.execute('INSERT INTO FamilyNames'
@@ -240,7 +244,7 @@ def build_db(dbfilename=DEFAULT_DBFILE, verbosity=0):
                                                      record.nationality))
             # Only detail individual steps if extra verbosity was requested.
             if verbosity > 1:
-                print('\tFamily names inserted')
+                print(u'\tFamily names inserted')
             for record in csvdata('family'):
                 if record.counterpart != '':
                     cur.execute('SELECT FamilyNameID'
@@ -256,7 +260,7 @@ def build_db(dbfilename=DEFAULT_DBFILE, verbosity=0):
                                 ' WHERE FamilyNameID = ?', (that_id, this_id))
             # Only detail individual steps if extra verbosity was requested.
             if verbosity > 1:
-                print('\tFamily name gender counterparts matched up')
+                print(u'\tFamily name gender counterparts matched up')
 
             for record in csvdata('pmatronymic'):
                 cur.execute('SELECT PersonalNameID'
@@ -265,7 +269,7 @@ def build_db(dbfilename=DEFAULT_DBFILE, verbosity=0):
                 try:
                     from_id = cur.fetchone()[0]
                 except TypeError:
-                    print("Can't find name '{}'!".format(record.from_))
+                    print(u"Can't find name '{}'!".format(record.from_))
                 cur.execute('INSERT INTO PMatronymics'
                             ' (Name, Romanisation, FromPersonalNameID,'
                             '  Gender, Nationality)'
@@ -276,7 +280,7 @@ def build_db(dbfilename=DEFAULT_DBFILE, verbosity=0):
                                                         record.nationality))
             # Only detail individual steps if extra verbosity was requested.
             if verbosity > 1:
-                print('\tPatro-/matronymics inserted')
+                print(u'\tPatro-/matronymics inserted')
 
             cur.execute('CREATE VIEW personal AS'
                         ' SELECT pn.Name as name'
@@ -311,7 +315,7 @@ def build_db(dbfilename=DEFAULT_DBFILE, verbosity=0):
                         '   ON nym.FromPersonalNameID = pn.PersonalNameID')
             # Only detail individual steps if extra verbosity was requested.
             if verbosity > 1:
-                print('\tViews created')
+                print(u'\tViews created')
     finally:
         conn.close()
 
@@ -326,28 +330,28 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
     try:
         # 0. Do only known values exist for gender and nationality?
         if verbosity:
-            print('Checking for unknown genders...')
+            print(u'Checking for unknown genders...')
         check_for_unknowns(conn, 'Gender', GENDERS)
         if verbosity:
-            print('Checking for unknown nationalities...')
+            print(u'Checking for unknown nationalities...')
         check_for_unknowns(conn, 'Nationality', NATIONALITIES.keys())
 
         # 1. Is each name unique?
         if verbosity:
-            print('Checking personal names for uniqueness...')
+            print(u'Checking personal names for uniqueness...')
         check_for_uniqueness(conn, 'PersonalNames', 'PersonalNameID')
 
         if verbosity:
-            print('Checking additional names for uniqueness...')
+            print(u'Checking additional names for uniqueness...')
         check_for_uniqueness(conn, 'AdditionalNames', 'AdditionalNameID')
 
         if verbosity:
-            print('Checking family names for uniqueness...')
+            print(u'Checking family names for uniqueness...')
         check_for_uniqueness(conn, 'FamilyNames', 'FamilyNameID',
                              (('FamilyNames', 'Name', 'Ctp', 'counterpart',
                                'CounterpartID', 'FamilyNameID'),))
         if verbosity:
-            print('Checking patro-/matronymics for uniqueness...')
+            print(u'Checking patro-/matronymics for uniqueness...')
         check_for_uniqueness(conn, 'PMatronymics', 'PMatronymicID',
                              (('PersonalNames', 'Name', 'From', 'source name',
                                'FromPersonalNameID', 'PersonalNameID'),))
@@ -358,8 +362,8 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
             expected_sources = set(NAME_PARTS[part] for fmt in fmts
                                    for part in fmt)
             if verbosity:
-                print('Checking whether {} names appear in {}, and nowhere '
-                      'else...'.format(nat, ', '.join(expected_sources)))
+                print(u'Checking whether {} names appear in {}, and nowhere '
+                      u'else...'.format(nat, ', '.join(expected_sources)))
 
             for source in DATA:
                 cur = conn.cursor()
@@ -369,18 +373,18 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
                             (nat,))
                 count = cur.fetchone()['Count']
                 if verbosity > 1:
-                    print("\tFound {} names in '{}'.".format(count, source))
+                    print(u"\tFound {} names in '{}'.".format(count, source))
 
                 if source in expected_sources and count == 0:
-                    print("ERROR: no {} names found in source "
-                          "'{}'".format(nat, source), file=sys.stderr)
+                    print(u"ERROR: no {} names found in source "
+                          u"'{}'".format(nat, source), file=sys.stderr)
                 elif source not in expected_sources and count > 0:
-                    print("WARNING: found {} {} names in source "
-                          "'{}'".format(count, nat, source), file=sys.stderr)
+                    print(u"WARNING: found {} {} names in source "
+                          u"'{}'".format(count, nat, source), file=sys.stderr)
 
         # 3. Do all family name counterparts form mutual cross-gender pairs?
         if verbosity:
-            print('Checking whether surname counterparts match up...')
+            print(u'Checking whether surname counterparts match up...')
         masc_to_fem = {}
 
         cur = conn.cursor()
@@ -392,8 +396,8 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
                     ' WHERE counterpart IS NOT NULL')
         for row in cur:
             if row['gender'] not in (MASCULINE, FEMININE):
-                print("ERROR: ungendered {0[nationality]} name '{0[name]}' "
-                      "has a counterpart ('{0[counterpart]}')".format(row),
+                print(u"ERROR: ungendered {0[nationality]} name '{0[name]}' "
+                      u"has a counterpart ('{0[counterpart]}')".format(row),
                       file=sys.stderr)
             else:
                 masc, fem = ((row['name'], row['counterpart'])
@@ -401,8 +405,8 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
                              (row['counterpart'], row['name']))
                 try:
                     if masc_to_fem[masc] != fem:
-                        print("ERROR: mismatched {} surnames (masculine '{}', "
-                              "feminine '{}')".format(row['nationality'],
+                        print(u"ERROR: mismatched {} surnames (masculine '{}',"
+                              u" feminine '{}')".format(row['nationality'],
                                                       masc, fem),
                               file=sys.stderr)
                 except KeyError:
@@ -410,7 +414,7 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
 
         # 4. Do gendered patro-/matronymics come in pairs?
         if verbosity:
-            print('Checking whether gendered patro-/matronymics come in '
+            print(u'Checking whether gendered patro-/matronymics come in '
                   'pairs...')
         child_of = {}
 
@@ -437,8 +441,8 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
             for gword, gender in (('masculine', MASCULINE),
                                   ('feminine', FEMININE)):
                 if len(childnames[gender]) == 0:
-                    print("ERROR: {} name '{}' lacks {} child "
-                          "name(s)".format(nat, name, gword), file=sys.stderr)
+                    print(u"ERROR: {} name '{}' lacks {} child "
+                          u"name(s)".format(nat, name, gword), file=sys.stderr)
 
         # 5. Do patro-/matronymics cover all names from nationalities that
         # use them?
@@ -458,9 +462,9 @@ def check_for_unknowns(conn, col, known_values, tables=TABLES):
                     ' GROUP BY {0}'.format(col, table))
         for row in cur:
             if row['Checked'] not in known_values:
-                print("WARNING: unknown {0} '{1[Checked]}' (appears "
-                      "{1[Count]} time{3} in table "
-                      "'{2}')".format(col.lower(), row, table,
+                print(u"WARNING: unknown {0} '{1[Checked]}' (appears "
+                      u"{1[Count]} time{3} in table "
+                      u"'{2}')".format(col.lower(), row, table,
                                       ('' if row['Count'] == 1 else 's')),
                       file=sys.stderr)
 
@@ -514,13 +518,13 @@ def check_for_uniqueness(conn, table, id_col, extra_joins=()):
                                                             row[col + 'A'],
                                                             row[col + 'B']))
         if len(mismatches) == 0:
-            print("WARNING: {0[Nat]} name '{0[Name]}'{1} has multiple "
-                  "entries".format(row,
+            print(u"WARNING: {0[Nat]} name '{0[Name]}'{1} has multiple "
+                  u"entries".format(row,
                                    '' if row['RomA'] == '' else
                                    " ('{}')".format(row['RomA'])),
                   file=sys.stderr)
         else:
-            print("WARNING: {0[Nat]} name '{0[Name]}' has multiple "
-                  "similar entries ({1})".format(row,
+            print(u"WARNING: {0[Nat]} name '{0[Name]}' has multiple "
+                  u"similar entries ({1})".format(row,
                                                  ', '.join(mismatches)),
                   file=sys.stderr)

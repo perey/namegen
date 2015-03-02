@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 '''Generate random names by choosing parts from a list of common ones.'''
 # Copyright © 2014, 2015 Timothy Pederick.
@@ -165,7 +166,7 @@ def generate(nationality=None, gender=None, verbosity=0):
                                  not_name=seen_names[part], randomise=True,
                                  limit=1, verbosity=verbosity)
         # Use the first (and only) result that the database returned.
-        chosen = next(random_choices)
+        chosen = random_choices[0]
         # Add it to our seen list.
         seen_names[part].append(chosen.name)
 
