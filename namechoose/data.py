@@ -23,24 +23,27 @@ from collections import namedtuple
 import csv
 import os.path
 import sqlite3
-import sys
 
-__all__ = ['MASCULINE', 'FEMININE', 'NEUTER', 'GENDERS',
-           'getdata']
+__all__ = ['MASCULINE', 'FEMININE', 'NEUTER', 'GENDERS', 'DEFAULT_DBFILE',
+           'DATA_COLUMNS', 'build_db', 'getdata']
 
-# Symbolic constants for genders.
+# Symbolic constants for genders, and a list of nationalities for validation.
 MASCULINE, FEMININE, NEUTER = GENDERS = 'MFN'
+NATIONALITIES = ['Armenian', 'Chinese', 'Danish', 'English', 'Finnish',
+                 'Georgian', 'Hungarian', 'Icelandic', 'Japanese', 'Latin',
+                 'Latvian', 'Polish', 'Russian', 'Spanish', 'Turkish',
+                 'Ukrainian', 'Vietnamese']
 
 # Locate the data files.
 THIS_DIR = os.path.dirname(__file__)
 DATA_DIR = os.path.join(THIS_DIR, 'dat')
 if not os.path.isdir(DATA_DIR):
     raise IOError('data directory not found')
-DEFAULT_DBFILE = os.path.join(DATA_DIR, 'namegen.db')
+DEFAULT_DBFILE = os.path.join(DATA_DIR, 'namechoose.db')
 
-# Data sources.
-# This dictionary matches identifiers to 2-tuples, containing a filename
-# for a CSV file, and a tuple of headings, which are from the following list:
+# Data source layouts.
+# This dictionary matches identifiers to tuples of headings, which are from
+# the following list:
 # * 'name': The name in its native script.
 # * 'romanisation': The name in the native script (empty if that is Latin).
 # * 'counterpart': A corresponding name with the opposite ('M'/'F') gender.
@@ -48,15 +51,17 @@ DEFAULT_DBFILE = os.path.join(DATA_DIR, 'namegen.db')
 #      appears in the 'name' field (i.e. in the native script).
 # * 'gender': 'M' for male names, 'F' for female, 'N' if applicable to either.
 # * 'nationality': A key from the NATIONALITIES mapping.
-DATA = {'personal': ('name', 'romanisation', 'gender', 'nationality'),
-        'additional': ('name', 'romanisation', 'gender', 'nationality'),
-        'family': ('name', 'romanisation', 'gender', 'counterpart',
-                   'nationality'),
-        'pmatronymic': ('name', 'romanisation', 'from_', 'gender',
-                        'nationality')
-        }
+DATA_COLUMNS = {'personal': ('name', 'romanisation', 'gender', 'nationality'),
+                'additional': ('name', 'romanisation', 'gender',
+                               'nationality'),
+                'family': ('name', 'romanisation', 'gender', 'counterpart',
+                           'nationality'),
+                'pmatronymic': ('name', 'romanisation', 'from_', 'gender',
+                                'nationality')
+                }
 # Shorthand to construct a namedtuple class suitable for each data source.
-nt_for = lambda source: namedtuple('{}_tuple'.format(source), DATA[source])
+nt_for = lambda source: namedtuple('{}_tuple'.format(source),
+                                   DATA_COLUMNS[source])
 
 def csvdata(source):
     '''Read in data from the named CSV source file.'''
@@ -314,213 +319,3 @@ def build_db(dbfilename=DEFAULT_DBFILE, verbosity=0):
                 print('\tViews created')
     finally:
         conn.close()
-
-TABLES = ('PersonalNames', 'AdditionalNames', 'FamilyNames', 'PMatronymics')
-
-def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
-    '''Validate non-SQL database constraints.'''
-    if not os.path.isfile(dbfilename):
-        build_db(dbfilename=dbfilename, verbosity=verbosity)
-    conn = sqlite3.connect(dbfilename)
-    conn.row_factory = sqlite3.Row
-    try:
-        # 0. Do only known values exist for gender and nationality?
-        if verbosity:
-            print('Checking for unknown genders...')
-        check_for_unknowns(conn, 'Gender', GENDERS)
-        if verbosity:
-            print('Checking for unknown nationalities...')
-        check_for_unknowns(conn, 'Nationality', NATIONALITIES.keys())
-
-        # 1. Is each name unique?
-        if verbosity:
-            print('Checking personal names for uniqueness...')
-        check_for_uniqueness(conn, 'PersonalNames', 'PersonalNameID')
-
-        if verbosity:
-            print('Checking additional names for uniqueness...')
-        check_for_uniqueness(conn, 'AdditionalNames', 'AdditionalNameID')
-
-        if verbosity:
-            print('Checking family names for uniqueness...')
-        check_for_uniqueness(conn, 'FamilyNames', 'FamilyNameID',
-                             (('FamilyNames', 'Name', 'Ctp', 'counterpart',
-                               'CounterpartID', 'FamilyNameID'),))
-        if verbosity:
-            print('Checking patro-/matronymics for uniqueness...')
-        check_for_uniqueness(conn, 'PMatronymics', 'PMatronymicID',
-                             (('PersonalNames', 'Name', 'From', 'source name',
-                               'FromPersonalNameID', 'PersonalNameID'),))
-
-        # 2. Do all nationalities provide names for fields listed in their
-        # format specifiers, and only for those fields?
-        for nat, fmts in NATIONALITIES.items():
-            expected_sources = set(NAME_PARTS[part] for fmt in fmts
-                                   for part in fmt)
-            if verbosity:
-                print('Checking whether {} names appear in {}, and nowhere '
-                      'else...'.format(nat, ', '.join(expected_sources)))
-
-            for source in DATA:
-                cur = conn.cursor()
-                cur.execute('SELECT COUNT(*) AS Count'
-                            ' FROM "{}"'
-                            ' WHERE nationality = ?'.format(source),
-                            (nat,))
-                count = cur.fetchone()['Count']
-                if verbosity > 1:
-                    print("\tFound {} names in '{}'.".format(count, source))
-
-                if source in expected_sources and count == 0:
-                    print("ERROR: no {} names found in source "
-                          "'{}'".format(nat, source), file=sys.stderr)
-                elif source not in expected_sources and count > 0:
-                    print("WARNING: found {} {} names in source "
-                          "'{}'".format(count, nat, source), file=sys.stderr)
-
-        # 3. Do all family name counterparts form mutual cross-gender pairs?
-        if verbosity:
-            print('Checking whether surname counterparts match up...')
-        masc_to_fem = {}
-
-        cur = conn.cursor()
-        cur.execute('SELECT name'
-                    ' , gender'
-                    ' , counterpart'
-                    ' , nationality'
-                    ' FROM "family"'
-                    ' WHERE counterpart IS NOT NULL')
-        for row in cur:
-            if row['gender'] not in (MASCULINE, FEMININE):
-                print("ERROR: ungendered {0[nationality]} name '{0[name]}' "
-                      "has a counterpart ('{0[counterpart]}')".format(row),
-                      file=sys.stderr)
-            else:
-                masc, fem = ((row['name'], row['counterpart'])
-                             if row['gender'] == MASCULINE else
-                             (row['counterpart'], row['name']))
-                try:
-                    if masc_to_fem[masc] != fem:
-                        print("ERROR: mismatched {} surnames (masculine '{}', "
-                              "feminine '{}')".format(row['nationality'],
-                                                      masc, fem),
-                              file=sys.stderr)
-                except KeyError:
-                    masc_to_fem[masc] = fem
-
-        # 4. Do gendered patro-/matronymics come in pairs?
-        if verbosity:
-            print('Checking whether gendered patro-/matronymics come in '
-                  'pairs...')
-        child_of = {}
-
-        cur = conn.cursor()
-        cur.execute('SELECT name'
-                    ' , gender'
-                    ' , from_'
-                    ' , nationality'
-                    ' FROM "pmatronymic"'
-                    ' WHERE gender <> ?', (NEUTER,))
-        for row in cur:
-            try:
-                child_names = child_of[(row['nationality'], row['from_'])]
-
-                try:
-                    child_names[row['gender']].append(row['name'])
-                except KeyError:
-                    child_names[row['gender']] = [row['name']]
-            except KeyError:
-                child_of[(row['nationality'],
-                          row['from_'])] = {row['gender']: [row['name']]}
-
-        for (nat, name), childnames in child_of.items():
-            for gword, gender in (('masculine', MASCULINE),
-                                  ('feminine', FEMININE)):
-                if len(childnames[gender]) == 0:
-                    print("ERROR: {} name '{}' lacks {} child "
-                          "name(s)".format(nat, name, gword), file=sys.stderr)
-
-        # 5. Do patro-/matronymics cover all names from nationalities that
-        # use them?
-        # TODO
-
-    finally:
-        # Do not commit! No changes should have been made anyway.
-        conn.close()
-
-def check_for_unknowns(conn, col, known_values, tables=TABLES):
-    '''Check the database for unknown values in a given column.'''
-    cur = conn.cursor()
-
-    for table in tables:
-        cur.execute('SELECT {0} AS Checked, COUNT(Name) AS Count'
-                    ' FROM {1}'
-                    ' GROUP BY {0}'.format(col, table))
-        for row in cur:
-            if row['Checked'] not in known_values:
-                print("WARNING: unknown {0} '{1[Checked]}' (appears "
-                      "{1[Count]} time{3} in table "
-                      "'{2}')".format(col.lower(), row, table,
-                                      ('' if row['Count'] == 1 else 's')),
-                      file=sys.stderr)
-
-def check_for_uniqueness(conn, table, id_col, extra_joins=()):
-    '''Check that all rows in a given table are unique.
-
-    Unique, in this instance, means that no two rows list the same name
-    from the same nationality. The database does not enforce this as a
-    uniqueness constraint anywhere, since there are a few legitimate
-    reasons for two records to duplicate these fields (e.g. different
-    Japanese readings).
-
-    '''
-    compare_cols = ['Rom', 'Gen']
-    compare_labels = ['romanised as', 'gender']
-
-    select_clause = ['SELECT tblA.Name AS Name'
-                     ' , tblA.Romanisation AS RomA'
-                     ' , tblB.Romanisation AS RomB'
-                     ' , tblA.Gender AS GenA'
-                     ' , tblB.Gender AS GenB'
-                     ' , tblA.Nationality as Nat']
-    from_clause = [' FROM {0} tblA'
-                   '  JOIN {0} tblB'
-                   '   ON tblA.Name = tblB.Name AND'
-                   '      tblA.Nationality = tblB.Nationality AND'
-                   '      tblA.{1} < tblB.{1}'.format(table, id_col)]
-    for n, (to_table, col, alias, natural_alias,
-            from_col, to_col) in enumerate(extra_joins):
-        select_clause.append(' , ex{0}A.{1} AS {2}A'
-                             ' , ex{0}B.{1} AS {2}B'.format(n, col, alias))
-        from_clause.append('  JOIN {0} ex{1}A'
-                           '   ON tblA.{2} = ex{1}A.{3}'
-                           '  JOIN {0} ex{1}B'
-                           '   ON tblB.{2} = ex{1}B.{3}'.format(to_table, n,
-                                                                from_col,
-                                                                to_col))
-        compare_cols.append(alias)
-        compare_labels.append(natural_alias)
-
-    # Execute the query.
-    cur = conn.cursor()
-    cur.execute(''.join(select_clause + from_clause))
-
-    # Warn about any duplicate rows.
-    for row in cur:
-        mismatches = []
-        for label, col in zip(compare_labels, compare_cols):
-            if row[col + 'A'] != row[col + 'B']:
-                mismatches.append("{} '{}' vs. '{}'".format(label,
-                                                            row[col + 'A'],
-                                                            row[col + 'B']))
-        if len(mismatches) == 0:
-            print("WARNING: {0[Nat]} name '{0[Name]}'{1} has multiple "
-                  "entries".format(row,
-                                   '' if row['RomA'] == '' else
-                                   " ('{}')".format(row['RomA'])),
-                  file=sys.stderr)
-        else:
-            print("WARNING: {0[Nat]} name '{0[Name]}' has multiple "
-                  "similar entries ({1})".format(row,
-                                                 ', '.join(mismatches)),
-                  file=sys.stderr)

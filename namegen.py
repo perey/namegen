@@ -25,6 +25,8 @@ from argparse import ArgumentParser
 
 # Local library import.
 from namechoose import generate, MASCULINE, FEMININE
+from namechoose.data import build_db
+from namechoose.checkdata import validate_data
 
 def argparser():
     '''Construct the command-line argument parser.'''
