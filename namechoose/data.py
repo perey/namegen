@@ -23,6 +23,7 @@
 from __future__ import print_function
 
 # Standard library imports.
+import codecs
 from collections import namedtuple
 import csv
 import os.path
@@ -72,8 +73,7 @@ def csvdata(source):
     filename = os.path.join(DATA_DIR, source + '.csv')
     nt = nt_for(source)
 
-    return map(nt._make, csv.reader(open(filename, encoding='utf-8',
-                                         newline='')))
+    return map(nt._make, csv.reader(open(filename)))
 
 def getdata(source, dbfilename=DEFAULT_DBFILE, randomise=False, limit=None,
          verbosity=0, **kwargs):
@@ -92,7 +92,8 @@ def getdata(source, dbfilename=DEFAULT_DBFILE, randomise=False, limit=None,
         where = []
         for kw, val in kwargs.items():
             # Are there multiple values specified?
-            val_is_multipart = not isinstance(val, str) # Strings don't count.
+            val_is_multipart = not (isinstance(val, str) or   # Strings don't
+                                    isinstance(val, unicode)) # count.
             if val_is_multipart: # Actually only a maybe at this point.
                 try:
                     # Non-sequence types choke on len()...
@@ -228,14 +229,18 @@ def build_db(dbfilename=DEFAULT_DBFILE, verbosity=0):
             # Read data files and populate tables.
             cur.executemany('INSERT INTO PersonalNames'
                             ' (Name, Romanisation, Gender, Nationality)'
-                            ' VALUES (?, ?, ?, ?)', csvdata('personal'))
+                            ' VALUES (?, ?, ?, ?)',
+                            (list(val.decode('utf-8') for val in row)
+                             for row in csvdata('personal')))
             # Only detail individual steps if extra verbosity was requested.
             if verbosity > 1:
                 print(u'\tPersonal names inserted')
 
             cur.executemany('INSERT INTO AdditionalNames'
                             ' (Name, Romanisation, Gender, Nationality)'
-                            ' VALUES (?, ?, ?, ?)', csvdata('additional'))
+                            ' VALUES (?, ?, ?, ?)',
+                            (list(val.decode('utf-8') for val in row)
+                             for row in csvdata('additional')))
             # Only detail individual steps if extra verbosity was requested.
             if verbosity > 1:
                 print(u'\tAdditional names inserted')
@@ -243,10 +248,11 @@ def build_db(dbfilename=DEFAULT_DBFILE, verbosity=0):
             for record in csvdata('family'):
                 cur.execute('INSERT INTO FamilyNames'
                             ' (Name, Romanisation, Gender, Nationality)'
-                            ' VALUES (?, ?, ?, ?)', (record.name,
-                                                     record.romanisation,
-                                                     record.gender,
-                                                     record.nationality))
+                            ' VALUES (?, ?, ?, ?)',
+                            (record.name.decode('utf-8'),
+                             record.romanisation.decode('utf-8'),
+                             record.gender.decode('utf-8'),
+                             record.nationality.decode('utf-8')))
             # Only detail individual steps if extra verbosity was requested.
             if verbosity > 1:
                 print(u'\tFamily names inserted')
@@ -254,11 +260,13 @@ def build_db(dbfilename=DEFAULT_DBFILE, verbosity=0):
                 if record.counterpart != '':
                     cur.execute('SELECT FamilyNameID'
                                 ' FROM FamilyNames'
-                                ' WHERE Name = ?', (record.name,))
+                                ' WHERE Name = ?',
+                                (record.name.decode('utf-8'),))
                     this_id = cur.fetchone()[0]
                     cur.execute('SELECT FamilyNameID'
                                 ' FROM FamilyNames'
-                                ' WHERE Name = ?', (record.counterpart,))
+                                ' WHERE Name = ?',
+                                (record.counterpart.decode('utf-8'),))
                     that_id = cur.fetchone()[0]
                     cur.execute('UPDATE FamilyNames'
                                 ' SET CounterpartID = ?'
@@ -270,19 +278,21 @@ def build_db(dbfilename=DEFAULT_DBFILE, verbosity=0):
             for record in csvdata('pmatronymic'):
                 cur.execute('SELECT PersonalNameID'
                             ' FROM PersonalNames'
-                            ' WHERE Name = ?', (record.from_,))
+                            ' WHERE Name = ?', (record.from_.decode('utf-8'),))
                 try:
                     from_id = cur.fetchone()[0]
                 except TypeError:
-                    print(u"Can't find name '{}'!".format(record.from_))
+                    print(u"Can't find name "
+                          u"'{}'!".format(record.from_.decode('utf-8')))
                 cur.execute('INSERT INTO PMatronymics'
                             ' (Name, Romanisation, FromPersonalNameID,'
                             '  Gender, Nationality)'
-                            ' VALUES (?, ?, ?, ?, ?)', (record.name,
-                                                        record.romanisation,
-                                                        from_id,
-                                                        record.gender,
-                                                        record.nationality))
+                            ' VALUES (?, ?, ?, ?, ?)',
+                            (record.name.decode('utf-8'),
+                             record.romanisation.decode('utf-8'),
+                             from_id,
+                             record.gender.decode('utf-8'),
+                             record.nationality.decode('utf-8')))
             # Only detail individual steps if extra verbosity was requested.
             if verbosity > 1:
                 print(u'\tPatro-/matronymics inserted')

@@ -77,23 +77,23 @@ def main():
         validate_data(verbosity=args.verbose)
     else:
         if args.verbose:
-            print('Generating {} random {}{}'
-                  'name{}...'.format(args.count,
-                                     {MASCULINE: 'masculine ',
-                                      FEMININE: 'feminine '}.get(args.gender,
-                                                                 ''),
-                                     ('' if args.nat is None else
-                                      nat_lookup(args.nat) + ' '),
-                                     's' if args.count > 1 else ''))
+            print(u'Generating {} random {}{}'
+                  u'name{}...'.format(args.count,
+                                      {MASCULINE: u'masculine ',
+                                       FEMININE: u'feminine '}.get(args.gender,
+                                                                   u''),
+                                      (u'' if args.nat is None else
+                                       nat_lookup(args.nat) + u' '),
+                                      u's' if args.count > 1 else u''))
         for _ in range(args.count):
             (name, romanised, gender, nationality,
              _) = generate(nationality=args.nat, gender=args.gender,
                            verbosity=args.verbose)
-            print(' '.join(name), end='')
+            print(u' '.join(name), end=u'')
             if len(romanised) > 0:
-                print(' ({})'.format(' '.join(romanised)), end='')
+                print(u' ({})'.format(u' '.join(romanised)), end=u'')
             if args.verbose:
-                print(' ({}, {})'.format(gender, nationality), end='')
+                print(u' ({}, {})'.format(gender, nationality), end=u'')
             print()
 
 if __name__ == '__main__':

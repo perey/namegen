@@ -229,9 +229,9 @@ def check_for_uniqueness(conn, table, id_col, extra_joins=()):
         mismatches = []
         for label, col in zip(compare_labels, compare_cols):
             if row[col + 'A'] != row[col + 'B']:
-                mismatches.append("{} '{}' vs. '{}'".format(label,
-                                                            row[col + 'A'],
-                                                            row[col + 'B']))
+                mismatches.append(u"{} '{}' vs. '{}'".format(label,
+                                                             row[col + 'A'],
+                                                             row[col + 'B']))
         if len(mismatches) == 0:
             print(u"WARNING: {0[Nat]} name '{0[Name]}'{1} has multiple "
                   u"entries".format(row,
@@ -239,7 +239,7 @@ def check_for_uniqueness(conn, table, id_col, extra_joins=()):
                                    " ('{}')".format(row['RomA'])),
                   file=sys.stderr)
         else:
-            print(u"WARNING: {0[Nat]} name '{0[Name]}' has multiple "
-                  u"similar entries ({1})".format(row,
-                                                 ', '.join(mismatches)),
+            print(u"WARNING: {} name '{}' has multiple similar entries"
+                  u" ()".format(row['Nat'], row['Name'],
+                                               ', '.join(mismatches)),
                   file=sys.stderr)
