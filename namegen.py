@@ -719,7 +719,7 @@ def main():
              _) = generate(nationality=args.nat, gender=args.gender,
                            verbosity=args.verbose)
             print(' '.join(name), end='')
-            if romanised != '':
+            if len(romanised) > 0:
                 print(' ({})'.format(' '.join(romanised)), end='')
             if args.verbose:
                 print(' ({}, {})'.format(gender, nationality), end='')
