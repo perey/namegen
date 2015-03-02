@@ -610,6 +610,15 @@ def generate(nationality=None, gender=None, verbosity=0):
         verbosity -- A numeric value that sets the amount of diagnostic
             detail dumped to standard output. The default is 0, for no
             output.
+    Returns:
+        A 5-tuple containing:
+            * A sequence of name parts in the original script
+            * A sequence of Romanised name parts (empty if the original
+              script is Latin)
+            * The gender of the name
+            * The nationality of the name
+            * The format of the name (a sequence of labels for the name
+              parts)
 
     '''
     # If given a nationality, use it (possibly after converting it from an
@@ -650,8 +659,7 @@ def generate(nationality=None, gender=None, verbosity=0):
         if chosen.romanisation != '':
             romanised_parts.append(chosen.romanisation)
 
-    return (' '.join(original_parts), ' '.join(romanised_parts),
-            gender, nationality)
+    return (original_parts, romanised_parts, gender, nationality, fmt)
 
 def argparser():
     '''Construct the command-line argument parser.'''
@@ -690,7 +698,7 @@ def argparser():
     return parser
 
 def main():
-    '''Handle command-line options and run the name generator.'''
+    '''Run the name generator as a command-line utility.'''
     args = argparser().parse_args()
     if args.action == 'validate':
         if not args.skip_rebuild:
@@ -707,13 +715,12 @@ def main():
                                       nat_lookup(args.nat) + ' '),
                                      's' if args.count > 1 else ''))
         for _ in range(args.count):
-            (name, romanised,
-             gender, nationality) = generate(nationality=args.nat,
-                                             gender=args.gender,
-                                             verbosity=args.verbose)
-            print(name, end='')
+            (name, romanised, gender, nationality,
+             _) = generate(nationality=args.nat, gender=args.gender,
+                           verbosity=args.verbose)
+            print(' '.join(name), end='')
             if romanised != '':
-                print(' ({})'.format(romanised), end='')
+                print(' ({})'.format(' '.join(romanised)), end='')
             if args.verbose:
                 print(' ({}, {})'.format(gender, nationality), end='')
             print()
