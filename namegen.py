@@ -22,6 +22,8 @@ __copyright__ = 'Copyright © 2014, 2015 Timothy Pederick'
 
 # Standard library imports.
 from argparse import ArgumentParser
+import codecs
+import sys
 
 # Local library import.
 from namechoose import generate, MASCULINE, FEMININE
@@ -50,6 +52,12 @@ def argparser():
                               "validation"))
 
     gen_args = parser.add_argument_group('Generation options')
+    gen_args.add_argument('-o', '--outfile', help=('write output to the named '
+                                                   'file (instead of standard '
+                                                   'output)'))
+    gen_args.add_argument('--overwrite', action='store_true',
+                          help=('overwrite the output file, instead of '
+                                'appending to it (the default behaviour)'))
     gen_args.add_argument('-c', '--count', type=int, default=1,
                           help=('the number of names to generate (defaults '
                                 'to 1)'))
@@ -66,31 +74,53 @@ def argparser():
 
 def main():
     '''Run the command-line utility.'''
+    # Parse command line arguments.
     args = argparser().parse_args()
+
+    # What are we doing?
     if args.action == 'validate':
+        # We're validating.
         if not args.skip_rebuild:
+            # ...after rebuilding the database.
             build_db(verbosity=args.verbose)
         validate_data(verbosity=args.verbose)
     else:
-        if args.verbose:
-            print('Generating {} random {}{}'
-                  'name{}...'.format(args.count,
-                                     {MASCULINE: 'masculine ',
-                                      FEMININE: 'feminine '}.get(args.gender,
-                                                                 ''),
-                                     ('' if args.nat is None else
-                                      nat_lookup(args.nat) + ' '),
-                                     's' if args.count > 1 else ''))
-        for _ in range(args.count):
-            (name, romanised, gender, nationality,
-             _) = generate(nationality=args.nat, gender=args.gender,
-                           verbosity=args.verbose)
-            print(' '.join(name), end='')
-            if len(romanised) > 0:
-                print(' ({})'.format(' '.join(romanised)), end='')
+        # We're generating.
+        try:
+            # Choose the target for output, either stdout or a given file.
+            target = sys.stdout
+            if args.outfile:
+                target = open(args.outfile, mode=('wt' if args.overwrite else
+                                                  'at'))
+            # Tell the user what's happening, if requested.
             if args.verbose:
-                print(' ({}, {})'.format(gender, nationality), end='')
-            print()
+                print('Generating {} random {}{}'
+                      'name{}...'.format(args.count,
+                                         {MASCULINE: 'masculine ',
+                                          FEMININE: 'feminine '
+                                          }.get(args.gender, ''),
+                                         ('' if args.nat is None else
+                                          nat_lookup(args.nat) + ' '),
+                                         's' if args.count > 1 else ''),
+                      file=target)
+            # Perform the actual generation step(s).
+            for _ in range(args.count):
+                (name, romanised, gender, nationality,
+                 _) = generate(nationality=args.nat, gender=args.gender,
+                               verbosity=args.verbose)
+                # Yes, I know, Chinese names (for one) shouldn't have a space
+                # between their parts. Sorry.
+                print(' '.join(name), end='', file=target)
+                if len(romanised) > 0:
+                    print(' ({})'.format(' '.join(romanised)), end='',
+                          file=target)
+                if args.verbose:
+                    print(' ({}, {})'.format(gender, nationality), end='',
+                          file=target)
+                print(file=target)
+        finally:
+            if args.outfile:
+                target.close()
 
 if __name__ == '__main__':
     main()
