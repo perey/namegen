@@ -35,7 +35,8 @@ At present, Namegen has data files and support for these nationalities:
 
 Command-line usage
 ==================
-``namegen.py [-h] [--version] [-v] [-G | -V] [-c COUNT] [-n NAT] [-g {M,F}]``
+``namegen.py [-h] [--version] [-v] [-G | -V [--skip-rebuild]]
+[-o OUTFILE [--overwrite]] [-c COUNT] [-n NAT] [-g {M,F}]``
 
 ``-v``, ``--verbose``
     Show detailed information on operations performed.
@@ -60,6 +61,12 @@ Actions
 Generation parameters
 ---------------------
 
+``-o OUTFILE``, ``--outfile OUTFILE``
+    Write output to the named file, instead of to standard output. If the file
+    already exists, the new text will be appended to it.
+``--overwrite``
+    Overwrite an existing file instead of appending to it. This option only has
+    an effect if ``--outfile`` is specified.
 ``-c COUNT``, ``--count COUNT``
     Generate ``COUNT`` names (defaults to 1).
 ``-n NAT``, ``--nat NAT``
