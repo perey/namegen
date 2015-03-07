@@ -26,7 +26,7 @@ import codecs
 import sys
 
 # Local library import.
-from namechoose import generate, MASCULINE, FEMININE
+from namechoose import generate, nat_lookup, MASCULINE, FEMININE
 from namechoose.data import build_db
 from namechoose.checkdata import validate_data
 

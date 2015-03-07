@@ -28,7 +28,7 @@ from .data import getdata, MASCULINE, FEMININE, NEUTER, GENDERS
 __all__ = ['__version__', '__author__', '__copyright__',
            'MASCULINE', 'FEMININE', 'NEUTER', 'GENDERS',
            'FORMATS', 'NAME_PARTS', 'NATIONALITIES',
-           'generate']
+           'generate', 'nat_lookup']
 
 __version__ = '0.2'
 __author__ = 'Timothy Pederick'
