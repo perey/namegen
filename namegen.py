@@ -90,8 +90,8 @@ def main():
             # Choose the target for output, either stdout or a given file.
             target = sys.stdout
             if args.outfile:
-                target = open(args.outfile, mode=('wt' if args.overwrite else
-                                                  'at'))
+                target = open(args.outfile, encoding='utf-8',
+                              mode=('wt' if args.overwrite else 'at'))
             # Tell the user what's happening, if requested.
             if args.verbose:
                 print('Generating {} random {}{}'
