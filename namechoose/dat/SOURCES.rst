@@ -49,3 +49,15 @@ The Väestötietojärjestelmä (VTJ; "Population Information System") provides
 `data sets <https://www.avoindata.fi/data/en/dataset/none>`_ listing all names
 that occur more than 50 times in the VTJ: surnames, first names (for men and
 women), and personal names after the first (for men and women).
+
+French
+======
+The site *`GEOPATRONYME.COM <http://www.geopatronyme.com/>`_* maintains a list
+counting children born with given surnames from 1891 to 1990. `The complete list
+<http://www.geopatronyme.com/cgi-bin/carte/hitnom.cgi?periode=5>`_ was used as
+the basis of the list. As the list is maintained in upper case letters, without
+diacritics, a search for each name on the French-language `Wikipédia
+<https://fr.wikipedia.org/>`_ was used to assign these.
+
+Data on common given names (*prénoms*) was sourced from `About.com
+<http://french.about.com/od/culture/a/frenchnames.htm>`_.
