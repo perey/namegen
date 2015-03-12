@@ -52,7 +52,7 @@ women), and personal names after the first (for men and women).
 
 French
 ======
-The site *`GEOPATRONYME.COM <http://www.geopatronyme.com/>`_* maintains a list
+The site `Geopatronyme.com <http://www.geopatronyme.com/>`_ maintains a list
 counting children born with given surnames from 1891 to 1990. `The complete list
 <http://www.geopatronyme.com/cgi-bin/carte/hitnom.cgi?periode=5>`_ was used as
 the basis of the list. As the list is maintained in upper case letters, without
