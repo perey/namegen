@@ -13,6 +13,7 @@ At present, Namegen has data files and support for these nationalities:
 * Danish (72 personal names, 38 family names)
 * English (99 personal names, 71 family names)
 * Finnish (120 personal names, 81 family names)
+* French (140 personal names, 85 family names)
 * Georgian (40 personal names, 22 family names)
 * Hungarian (21 family names, 52 personal names)
 * Icelandic (71 personal names and corresponding patro-/matronyms, plus 12
