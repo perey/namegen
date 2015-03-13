@@ -39,43 +39,36 @@ Command-line usage
 ``namegen.py [-h] [--version] [-v] [-G | -V [--skip-rebuild]]
 [-o OUTFILE [--overwrite]] [-c COUNT] [-n NAT] [-g {M,F}]``
 
-``-v``, ``--verbose``
-    Show detailed information on operations performed.
+-v, --verbose      Show detailed information on operations performed.
 
 -------
 Actions
 -------
 
-``-h``, ``--help``
-    Show a help message and exit.
-``--version``
-    Show version information and exit.
-``-G``, ``--generate``
-    Generate one or more names. (This is the default action.)
-``-V``, ``--validate``
-    Rebuild and validate the database.
-``--skip-rebuild``
-    Do not rebuild the database before validation. This option only has an
-    effect if ``--validate`` is specified.
+-h, --help         Show a help message and exit.
+--version          Show version information and exit.
+-G, --generate     Generate one or more names. (This is the default action.)
+-V, --validate     Rebuild and validate the database.
+--skip-rebuild     Do not rebuild the database before validation. This option
+                   only has an effect if ``--validate`` is specified.
 
 ---------------------
 Generation parameters
 ---------------------
 
-``-o OUTFILE``, ``--outfile OUTFILE``
-    Write output to the named file, instead of to standard output. If the file
-    already exists, the new text will be appended to it.
-``--overwrite``
-    Overwrite an existing file instead of appending to it. This option only has
-    an effect if ``--outfile`` is specified.
-``-c COUNT``, ``--count COUNT``
-    Generate ``COUNT`` names (defaults to 1).
-``-n NAT``, ``--nat NAT``
-    Generate names of nationality ``NAT``. This may be a full name (in
-    English), such as "Russian", or an ISO 639 two- or three-letter code, such
-    as "ru".
-``-g {M,F}``, ``--gender {M,F}``
-    The gender of the name(s) generated.
+-o OUTFILE, --outfile OUTFILE  Write output to the named file, instead of to
+                               standard output. If the file already exists,
+                               the new text will be appended to it.
+--overwrite                    Overwrite an existing file instead of appending
+                               to it. This option only has an effect if
+                               ``--outfile`` is specified.
+-c COUNT, --count COUNT        Generate ``COUNT`` names (defaults to 1).
+-n NAT, --nat NAT              Generate names of nationality ``NAT``. This may
+                               be a full name (in English), such as "Russian",
+                               or an ISO 639 two- or three-letter code, such
+                               as "ru".
+-g G, --gender G               The gender of the name(s) generated (either
+                               ``M`` or ``F``; must be capitalised).
 
 Copyright and Licence
 =====================
