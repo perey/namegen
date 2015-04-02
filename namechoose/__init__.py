@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 '''Generate random names by choosing parts from a list of common ones.'''
 # Copyright © 2014, 2015 Timothy Pederick.
@@ -17,6 +18,9 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with namechoose.  If not, see <http://www.gnu.org/licenses/>.
+
+# Compatibility features.
+from __future__ import absolute_import, print_function, unicode_literals
 
 # Standard library imports.
 from collections import defaultdict
@@ -169,7 +173,7 @@ def generate(nationality=None, gender=None, verbosity=0):
                                  not_name=seen_names[part], randomise=True,
                                  limit=1, verbosity=verbosity)
         # Use the first (and only) result that the database returned.
-        chosen = next(random_choices)
+        chosen = next(iter(random_choices))
         # Add it to our seen list.
         seen_names[part].append(chosen.name)
 

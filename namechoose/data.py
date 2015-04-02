@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 '''Access the namechoose data files.'''
 # Copyright © 2014, 2015 Timothy Pederick.
@@ -17,6 +18,15 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with namechoose.  If not, see <http://www.gnu.org/licenses/>.
+
+# Compatibility features.
+from __future__ import absolute_import, print_function, unicode_literals
+try:
+    # Python 2
+    basestring
+except NameError:
+    # Python 3
+    basestring = str
 
 # Standard library imports.
 from collections import namedtuple
@@ -68,8 +78,24 @@ def csvdata(source):
     filename = os.path.join(DATA_DIR, source + '.csv')
     nt = nt_for(source)
 
-    return map(nt._make, csv.reader(open(filename, encoding='utf-8',
-                                         newline='')))
+    try:
+        reader = csv.reader(open(filename, encoding='utf-8'))
+    except TypeError:
+        # Under Python 2, open() doesn't support the encoding argument. We
+        # could switch to codecs.open() instead, but the underlying problem
+        # is that the csv module doesn't support Unicode. So, we want to read
+        # bytes from the file, and then encode them after csv has used them but
+        # before they go anywhere else. This is taken from the csv module docs,
+        # with unneeded code stripped and the call to unicode() replaced with
+        # decode().
+        def unicode_csv_reader(unicode_csv_data):
+            csv_reader = csv.reader(unicode_csv_data)
+            for row in csv_reader:
+                yield [cell.decode('utf-8') for cell in row]
+
+        reader = unicode_csv_reader(open(filename))
+
+    return map(nt._make, reader)
 
 def getdata(source, dbfilename=DEFAULT_DBFILE, randomise=False, limit=None,
          verbosity=0, **kwargs):
@@ -87,8 +113,8 @@ def getdata(source, dbfilename=DEFAULT_DBFILE, randomise=False, limit=None,
         query.append('WHERE')
         where = []
         for kw, val in kwargs.items():
-            # Are there multiple values specified?
-            val_is_multipart = not isinstance(val, str) # Strings don't count.
+            # Are there multiple values specified? (Strings don't count.)
+            val_is_multipart = not isinstance(val, basestring)
             if val_is_multipart: # Actually only a maybe at this point.
                 try:
                     # Non-sequence types choke on len()...

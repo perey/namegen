@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 '''Validate the contents of the namechoose database.'''
 # Copyright © 2014, 2015 Timothy Pederick.
@@ -17,6 +18,9 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with namechoose.  If not, see <http://www.gnu.org/licenses/>.
+
+# Compatibility features.
+from __future__ import absolute_import, print_function, unicode_literals
 
 # Standard library imports.
 import os.path
@@ -82,7 +86,13 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
                             ' FROM "{}"'
                             ' WHERE nationality = ?'.format(source),
                             (nat,))
-                count = cur.fetchone()['Count']
+                row = cur.fetchone()
+                try:
+                    count = row['Count']
+                except IndexError:
+                    # sqlite3 expects old-fashioned strings under Python 2, not
+                    # Unicode strings.
+                    count = row[b'Count']
                 if verbosity > 1:
                     print("\tFound {} names in '{}'.".format(count, source))
 
@@ -106,19 +116,18 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
                     ' FROM "family"'
                     ' WHERE counterpart IS NOT NULL')
         for row in cur:
-            if row['gender'] not in (MASCULINE, FEMININE):
-                print("ERROR: ungendered {0[nationality]} name '{0[name]}' "
-                      "has a counterpart ('{0[counterpart]}')".format(row),
+            name, gender, counterpart, nationality = row
+            if gender not in (MASCULINE, FEMININE):
+                print("ERROR: ungendered {} name '{}' has a counterpart "
+                      "('{}')".format(nationality, name, counterpart),
                       file=sys.stderr)
             else:
-                masc, fem = ((row['name'], row['counterpart'])
-                             if row['gender'] == MASCULINE else
-                             (row['counterpart'], row['name']))
+                masc, fem = ((name, counterpart) if gender == MASCULINE else
+                             (counterpart, name))
                 try:
                     if masc_to_fem[masc] != fem:
                         print("ERROR: mismatched {} surnames (masculine '{}', "
-                              "feminine '{}')".format(row['nationality'],
-                                                      masc, fem),
+                              "feminine '{}')".format(nationality, masc, fem),
                               file=sys.stderr)
                 except KeyError:
                     masc_to_fem[masc] = fem
@@ -137,16 +146,16 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
                     ' FROM "pmatronymic"'
                     ' WHERE gender <> ?', (NEUTER,))
         for row in cur:
+            name, gender, from_, nationality = row
             try:
-                child_names = child_of[(row['nationality'], row['from_'])]
+                child_names = child_of[(nationality, from_)]
 
                 try:
-                    child_names[row['gender']].append(row['name'])
+                    child_names[gender].append(name)
                 except KeyError:
-                    child_names[row['gender']] = [row['name']]
+                    child_names[gender] = [name]
             except KeyError:
-                child_of[(row['nationality'],
-                          row['from_'])] = {row['gender']: [row['name']]}
+                child_of[(nationality, from_)] = {gender: [name]}
 
         for (nat, name), childnames in child_of.items():
             for gword, gender in (('masculine', MASCULINE),
@@ -172,7 +181,13 @@ def check_for_unknowns(conn, col, known_values, tables=TABLES):
                     ' FROM {1}'
                     ' GROUP BY {0}'.format(col, table))
         for row in cur:
-            if row['Checked'] not in known_values:
+            try:
+                val = row['Checked']
+            except IndexError:
+                # sqlite3 expects old-fashioned strings under Python 2, not
+                # Unicode strings.
+                val = row[b'Checked']
+            if val not in known_values:
                 print("WARNING: unknown {0} '{1[Checked]}' (appears "
                       "{1[Count]} time{3} in table "
                       "'{2}')".format(col.lower(), row, table,
@@ -224,18 +239,35 @@ def check_for_uniqueness(conn, table, id_col, extra_joins=()):
     for row in cur:
         mismatches = []
         for label, col in zip(compare_labels, compare_cols):
-            if row[col + 'A'] != row[col + 'B']:
+            try:
+                valA, valB = row[col + 'A'], row[col + 'B']
+            except IndexError:
+                # sqlite3 expects old-fashioned strings under Python 2, not
+                # Unicode strings.
+                valA, valB = (row[(col + 'A').encode('ascii')],
+                              row[(col + 'B').encode('ascii')])
+            if valA != valB:
                 mismatches.append("{} '{}' vs. '{}'".format(label,
-                                                            row[col + 'A'],
-                                                            row[col + 'B']))
+                                                            valA, valB))
         if len(mismatches) == 0:
+            try:
+                romanisedA = row['RomA']
+            except IndexError:
+                # sqlite3 expects old-fashioned strings under Python 2, not
+                # Unicode strings.
+                romanisedA = row[b'RomA']
             print("WARNING: {0[Nat]} name '{0[Name]}'{1} has multiple "
                   "entries".format(row,
-                                   '' if row['RomA'] == '' else
-                                   " ('{}')".format(row['RomA'])),
+                                   '' if romanisedA == '' else
+                                   " ('{}')".format(romanisedA)),
                   file=sys.stderr)
         else:
-            print("WARNING: {0[Nat]} name '{0[Name]}' has multiple "
-                  "similar entries ({1})".format(row,
-                                                 ', '.join(mismatches)),
+            try:
+                nat, name = (row['Nat'], row['Name'])
+            except IndexError:
+                # sqlite3 expects old-fashioned strings under Python 2, not
+                # Unicode strings.
+                nat, name = (row[b'Nat'], row[b'Name'])
+            print("WARNING: {} name '{}' has multiple similar entries "
+                  "({})".format(nat, name, ', '.join(mismatches)),
                   file=sys.stderr)
