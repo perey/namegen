@@ -35,9 +35,9 @@ def ruleset(lang, filename=None):
         lang -- The language code for the transliteration ruleset.
         filename -- The name of a JSON file containing one or more
             transliteration rulesets. If omitted, the default file
-            ('{}') is tried.
+            ('translit.json') is tried.
 
-    """.format(DEFAULT_FILENAME)
+    """
     if filename is None:
         filename = DEFAULT_FILENAME
 
@@ -78,7 +78,16 @@ def ruleset(lang, filename=None):
         return ruleset
 
 def translit(s, lang, filename=None):
-    """Transliterate a string according to rules for a given language."""
+    """Transliterate a string according to a given set of rules.
+
+    Keyword arguments:
+        s -- The string to transliterate.
+        lang -- The set of rules to use.
+        filename -- The name of a JSON file containing the
+            transliteration ruleset. If omitted, the default file
+            set by the ruleset() function is used.
+
+    """
     rules = ruleset(lang, filename)
     if rules is None:
         # No transliteration rules available. Return the string unchanged.
