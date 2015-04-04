@@ -5,7 +5,7 @@ Namegen: Random name generator
 Namegen generates random, (vaguely) realistic names, conforming to the naming
 conventions of several nationalities.
 
-At present, Namegen has data files and support for these nationalities:
+At present, Namegen has data files and support for these modern nationalities:
 
 * Armenian (50 personal names, 33 family names)
 * Chinese (56 family names, 108 personal names) in simplified characters and in
@@ -20,8 +20,6 @@ At present, Namegen has data files and support for these nationalities:
   middle names and 33 family names)
 * Japanese (33 family names, 107 personal names, including different kanji and
   even different readings in rōmaji)
-* Latin (74 praenomina, 49 nomina in masculine and feminine forms, 71 cognomina
-  including 53 with both masculine and feminine forms)
 * Latvian (33 personal names, 21 family names with both masculine and feminine
   forms)
 * Polish (111 personal names, 53 family names including 30 with both masculine
@@ -33,6 +31,13 @@ At present, Namegen has data files and support for these nationalities:
 * Ukrainian (76 personal names with corresponding patronyms for masculine
   names, 50 family names)
 * Vietnamese (16 family names, 14 middle names, 63 personal names)
+
+Additionally, historical names from these periods are supported:
+* Latin, *circa* the first centuries BC and AD (74 praenomina, 49 nomina in
+  masculine and feminine forms, 71 cognomina including 53 with both masculine
+  and feminine forms)
+* Old Spanish, *circa* the tenth to twelfth centuries (91 personal names with
+  corresponding patronyms for masculine names)
 
 Command-line usage
 ==================
