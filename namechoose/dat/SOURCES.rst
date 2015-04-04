@@ -13,7 +13,7 @@ Chinese
 =======
 Chinese surnames are so heavily weighted towards a few common names that "the
 hundred surnames" is an idiomatic term for the Chinese people. Most data on
-these names was taken from Wikipedia (primarily the articles "`Chinese surname
+these names was taken from Wikipedia_ (primarily the articles "`Chinese surname
 <https://en.wikipedia.org/wiki/Chinese_surname>`_" and "`List of common Chinese
 surnames <https://en.wikipedia.org/wiki/List_of_common_Chinese_surnames>`_"),
 which collects data from a number of primary sources.
@@ -61,3 +61,17 @@ diacritics, a search for each name on the French-language `Wikipédia
 
 Data on common given names (*prénoms*) was sourced from `About.com
 <http://french.about.com/od/culture/a/frenchnames.htm>`_.
+
+Old Spanish
+===========
+These names were found through a moderately thorough browsing of articles on
+both the `English-language`__ and `Spanish-language Wikipedias
+<https://es.wikipedia.org/>`_. As a result, they are no doubt a confused
+combination of names from all over the Iberian peninsula; but then again, so
+were the families of the time! Information on authentic spellings of the
+period (if such even exists) was lacking, so I have generally favoured the
+later Spanish spellings where available.
+
+__ Wikipedia_
+
+.. _Wikipedia: https://en.wikipedia.org/
