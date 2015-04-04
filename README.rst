@@ -33,6 +33,7 @@ At present, Namegen has data files and support for these modern nationalities:
 * Vietnamese (16 family names, 14 middle names, 63 personal names)
 
 Additionally, historical names from these periods are supported:
+
 * Latin, *circa* the first centuries BC and AD (74 praenomina, 49 nomina in
   masculine and feminine forms, 71 cognomina including 53 with both masculine
   and feminine forms)
