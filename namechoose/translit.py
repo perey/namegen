@@ -34,27 +34,27 @@ if not os.path.isdir(DATA_DIR):
     raise IOError('data directory not found')
 DEFAULT_FILENAME = os.path.join(DATA_DIR, 'translit.json')
 
-def ruleset(lang, filename=None):
+def ruleset(ruleset_id, filename=None):
     """Load a transliteration ruleset from a file.
 
     Keyword arguments:
-        lang -- The language code for the transliteration ruleset.
+        ruleset_id -- The identifier for the transliteration ruleset.
         filename -- The name of a JSON file containing one or more
             transliteration rulesets. If omitted, the default file
-            ('translit.json') is tried.
+            ('dat/translit.json') is tried.
 
     """
     if filename is None:
         filename = DEFAULT_FILENAME
 
     try:
-        from_cache = _cached_rulesets[(filename, lang)]
+        from_cache = _cached_rulesets[(filename, ruleset_id)]
         # Update the recent-use status of this cache entry.
-        _cached_rulesets.move_to_end((filename, lang))
+        _cached_rulesets.move_to_end((filename, ruleset_id))
 
         return from_cache
     except KeyError:
-        # This language ruleset is not cached. Is the file it's in cached?
+        # This ruleset is not cached. Is the file it's in cached?
         try:
             rulefile = _cached_rulefiles[filename]
             # Update the recent-use status of this cache entry.
@@ -68,33 +68,33 @@ def ruleset(lang, filename=None):
             if len(_cached_rulefiles) > _CACHE_LIMIT:
                 _cached_rulefiles.popitem()
 
-        rules = rulefile.get(lang)
-        if rules is None:
+        ruleset_data = rulefile.get(ruleset_id)
+        if ruleset_data is None:
             ruleset = None
         else:
             # Compile the regexes in this ruleset.
             ruleset = list((re.compile(regex), output)
-                           for regex, output in rules)
+                           for regex, output in ruleset_data["rules"])
 
-        _cached_rulesets[(filename, lang)] = ruleset
+        _cached_rulesets[(filename, ruleset_id)] = ruleset
         # Maintain the LRU cache size.
         if len(_cached_rulesets) > _CACHE_LIMIT:
             _cached_rulesets.popitem()
 
         return ruleset
 
-def translit(s, lang, filename=None):
+def translit(s, ruleset_id, filename=None):
     """Transliterate a string according to a given set of rules.
 
     Keyword arguments:
         s -- The string to transliterate.
-        lang -- The set of rules to use.
+        ruleset_id -- The identifier for the set of rules to use.
         filename -- The name of a JSON file containing the
             transliteration ruleset. If omitted, the default file
             set by the ruleset() function is used.
 
     """
-    rules = ruleset(lang, filename)
+    rules = ruleset(ruleset_id, filename)
     if rules is None:
         # No transliteration rules available. Return the string unchanged.
         return s
