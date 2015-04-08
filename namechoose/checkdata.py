@@ -34,7 +34,7 @@ __all__ = ['validate_data']
 TABLES = ('PersonalNames', 'AdditionalNames', 'FamilyNames', 'PMatronymics')
 
 TRANSLIT_RULESETS = {'Russian': 'ru_BGN_PCGN_modified',
-                     'Ukrainian': 'uk_BGN_PCGN'}
+                     'Ukrainian': 'uk_BGN_PCGN_simple'}
 
 def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
     '''Validate non-SQL database constraints.'''

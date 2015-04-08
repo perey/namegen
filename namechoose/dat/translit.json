@@ -308,8 +308,8 @@
       ["ʼ", "ʺ"]
     ]
   },
-  "uk_BGN_PCGN_simplified": {
-    "friendly_name": "BGN/PCGN romanisation of Ukrainian",
+  "uk_BGN_PCGN_simple": {
+    "friendly_name": "Simplified BGN/PCGN romanisation of Ukrainian",
     "lang": "uk",
     "from_script": "Cyrl",
     "to_script": "Latn",
