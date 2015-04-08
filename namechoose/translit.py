@@ -34,7 +34,10 @@ if not os.path.isdir(DATA_DIR):
     raise IOError('data directory not found')
 DEFAULT_FILENAME = os.path.join(DATA_DIR, 'translit.json')
 
-def ruleset(ruleset_id, filename=None):
+# Bicameral scripts have bicameral transliteration rules.
+BICAMERAL = ['Armn', 'Cyrl', 'Grek', 'Latn']
+
+def ruleset_by_id(ruleset_id, filename=None):
     """Load a transliteration ruleset from a file.
 
     Keyword arguments:
@@ -68,13 +71,11 @@ def ruleset(ruleset_id, filename=None):
             if len(_cached_rulefiles) > _CACHE_LIMIT:
                 _cached_rulefiles.popitem()
 
-        ruleset_data = rulefile.get(ruleset_id)
-        if ruleset_data is None:
-            ruleset = None
-        else:
+        ruleset = rulefile.get(ruleset_id)
+        if ruleset is not None:
             # Compile the regexes in this ruleset.
-            ruleset = list((re.compile(regex), output)
-                           for regex, output in ruleset_data["rules"])
+            ruleset['rules'] = list((re.compile(regex), output)
+                                    for regex, output in ruleset['rules'])
 
         _cached_rulesets[(filename, ruleset_id)] = ruleset
         # Maintain the LRU cache size.
@@ -94,15 +95,15 @@ def translit(s, ruleset_id, filename=None):
             set by the ruleset() function is used.
 
     """
-    rules = ruleset(ruleset_id, filename)
-    if rules is None:
+    ruleset = ruleset_by_id(ruleset_id, filename)
+    if ruleset is None:
         # No transliteration rules available. Return the string unchanged.
         return s
 
     result = []
     pos = 0
     while pos < len(s):
-        for regex, output in rules:
+        for regex, output in ruleset['rules']:
             match = regex.match(s, pos)
             if match:
                 # We have a match! Transliterate it.
@@ -116,3 +117,18 @@ def translit(s, ruleset_id, filename=None):
             result.append(s[pos])
             pos += 1
     return ''.join(result)
+
+def is_translit(expected, s, ruleset_id, filename=None):
+    """Determine whether a string is a correct transliteration of another."""
+    actual_translit = translit(s, ruleset_id, filename)
+    ruleset = ruleset_by_id(ruleset_id, filename)
+
+    if ruleset["from_script"] in BICAMERAL:
+        # Don't case-fold bicameral scripts.
+        return actual_translit == expected
+    else:
+        try:
+            # Python 3.3 introduced real case-folding.
+            return actual_translit.casefold() == expected.casefold()
+        except AttributeError:
+            return actual_translit.lower() == expected.lower()

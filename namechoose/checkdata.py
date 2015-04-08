@@ -33,9 +33,10 @@ __all__ = ['validate_data']
 
 TABLES = ('PersonalNames', 'AdditionalNames', 'FamilyNames', 'PMatronymics')
 
-TRANSLIT_RULESETS = {'Russian': 'ru_BGN_PCGN_modified',
-                     'Ukrainian': 'uk_BGN_PCGN_simple',
-                     'Armenian': 'hy_ISO_hybrid'}
+TRANSLIT_RULESETS = {'Armenian': 'hy_ISO_hybrid',
+                     'Georgian': 'ka_ISO9984',
+                     'Russian': 'ru_BGN_PCGN_modified',
+                     'Ukrainian': 'uk_BGN_PCGN_simple'}
 
 def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
     '''Validate non-SQL database constraints.'''
@@ -171,7 +172,7 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
                 print('Checking whether {} transliterations are '
                       'correct...'.format(nat))
 
-            if translit.ruleset(ruleset_id) is None:
+            if translit.ruleset_by_id(ruleset_id) is None:
                 print('WARNING: transliteration rules for {} could not be '
                       'found. Skipping...'.format(nat), file=sys.stderr)
                 continue
@@ -193,9 +194,10 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
                                                         row['romanisation']),
                               end='')
 
-                    expected_translit = translit.translit(row['name'],
-                                                          ruleset_id)
-                    if (expected_translit != row['romanisation']):
+                    if not translit.is_translit(row['romanisation'],
+                                                row['name'], ruleset_id):
+                        expected_translit = translit.translit(row['name'],
+                                                              ruleset_id)
                         if verbosity > 1:
                             print("no, got '{}'".format(expected_translit))
 
