@@ -19,6 +19,7 @@
 # Standard library imports.
 from collections import OrderedDict
 import json
+import os.path
 import re
 
 # LRU caches.
@@ -26,7 +27,12 @@ _CACHE_LIMIT = 10
 _cached_rulefiles = OrderedDict()
 _cached_rulesets = OrderedDict()
 
-DEFAULT_FILENAME = 'translit.json'
+# Locate the data file.
+THIS_DIR = os.path.dirname(__file__)
+DATA_DIR = os.path.join(THIS_DIR, 'dat')
+if not os.path.isdir(DATA_DIR):
+    raise IOError('data directory not found')
+DEFAULT_FILENAME = os.path.join(DATA_DIR, 'translit.json')
 
 def ruleset(lang, filename=None):
     """Load a transliteration ruleset from a file.
