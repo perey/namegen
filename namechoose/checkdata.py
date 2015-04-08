@@ -27,10 +27,13 @@ import sys
 from . import (GENDERS, MASCULINE, FEMININE, NEUTER, FORMATS, NAME_PARTS,
                NATIONALITIES)
 from .data import getdata, DEFAULT_DBFILE, DATA_COLUMNS
+from . import translit
 
 __all__ = ['validate_data']
 
 TABLES = ('PersonalNames', 'AdditionalNames', 'FamilyNames', 'PMatronymics')
+
+TRANSLIT_RULESETS = {'Russian': 'ru_BGN_PCGN_modified'}
 
 def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
     '''Validate non-SQL database constraints.'''
@@ -158,6 +161,48 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
         # 5. Do patro-/matronymics cover all names from nationalities that
         # use them?
         # TODO
+
+        # 6. Do all transliterated names obey a transliteration standard, if
+        # one is available?
+        for nat, ruleset_id in TRANSLIT_RULESETS.items():
+            if verbosity:
+                print('Checking whether {} transliterations are '
+                      'correct...'.format(nat))
+
+            if translit.ruleset(ruleset_id) is None:
+                print('WARNING: transliteration rules for {} could not be '
+                      'found. Skipping...'.format(nat), file=sys.stderr)
+                continue
+
+            fmts = FORMATS[nat]
+            sources_to_check = set(NAME_PARTS[part] for fmt in fmts
+                                   for part in fmt)
+
+            for source in sources_to_check:
+                cur = conn.cursor()
+                cur.execute('SELECT name'
+                            ' , romanisation'
+                            ' FROM "{}"'
+                            ' WHERE nationality = ?'.format(source),
+                            (nat,))
+                for row in cur:
+                    if verbosity > 1:
+                        print("\t'{}' to '{}': ".format(row['name'],
+                                                        row['romanisation']),
+                              end='')
+
+                    expected_translit = translit.translit(row['name'],
+                                                          ruleset_id)
+                    if (expected_translit != row['romanisation']):
+                        if verbosity > 1:
+                            print("no, got '{}'".format(expected_translit))
+
+                        print("WARNING: {0} name '{1[name]}' is romanised as "
+                              "'{1[romanisation]}', expected "
+                              "'{2}'".format(nat, row, expected_translit),
+                              file=sys.stderr)
+                    elif verbosity > 1:
+                        print('OK')
 
     finally:
         # Do not commit! No changes should have been made anyway.
