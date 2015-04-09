@@ -151,7 +151,10 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
         for (nat, name), childnames in child_of.items():
             for gword, gender in (('masculine', MASCULINE),
                                   ('feminine', FEMININE)):
-                if len(childnames[gender]) == 0:
+                try:
+                    if len(childnames[gender]) == 0:
+                        raise IndexError
+                except (IndexError, KeyError):
                     print("ERROR: {} name '{}' lacks {} child "
                           "name(s)".format(nat, name, gword), file=sys.stderr)
 
