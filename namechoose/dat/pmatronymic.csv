@@ -147,7 +147,7 @@
 Владимирович,Vladimirovich,Владимир,M,Russian
 Владимировна,Vladimirovna,Владимир,F,Russian
 Володимирівна,Volodymyrivna,Володимир,F,Ukrainian
-Володимирович,Volodymyrovich,Володимир,M,Ukrainian
+Володимирович,Volodymyrovych,Володимир,M,Ukrainian
 Вячеславич,Vyacheslavich,Вячеслав,M,Russian
 Вʼячеславівна,Vyacheslavivna,Вʼячеслав,F,Ukrainian
 Вячеславна,Vyacheslavna,Вячеслав,F,Russian
@@ -173,6 +173,7 @@
 Юрьевич,Yuryevich,Юрий,M,Russian
 Юрьевна,Yuryevna,Юрий,F,Russian
 Alfónsez,,Alfonso,N,Old Spanish
+Alóitez,,Aloito,N,Old Spanish
 Álvarez,,Álvaro,N,Old Spanish
 Andradóttir,,Andri,F,Icelandic
 Andrason,,Andri,M,Icelandic
@@ -217,12 +218,13 @@ Enríquez,,Enrique,N,Old Spanish
 Eriz,,Ero,N,Old Spanish
 Erludóttir,,Erla,F,Icelandic
 Erluson,,Erla,M,Icelandic
+Estébanez,,Esteban,N,Old Spanish
 Evudóttir,,Eva,F,Icelandic
 Evuson,,Eva,M,Icelandic
 Fernández,,Fernando,N,Old Spanish
 Flaínez,,Flaín,N,Old Spanish
 Fortúnez,,Fortún,N,Old Spanish
-Fróilaz,,Froila,N,Old Spanish
+Fróilaz,,Fruela,N,Old Spanish
 Galíndez,,Galindo,N,Old Spanish
 Garcés,,García,N,Old Spanish
 Gelmírez,,Gelmiro,N,Old Spanish
@@ -241,6 +243,7 @@ Guðnýjarson,,Guðný,M,Icelandic
 Guðrúnardóttir,,Guðrún,F,Icelandic
 Guðrúnarson,,Guðrún,M,Icelandic
 Gundemáriz,,Gundemaro,N,Old Spanish
+Gundesíndiz,,Gundesindo,N,Old Spanish
 Gunnarsdóttir,,Gunnar,F,Icelandic
 Gunnarsson,,Gunnar,M,Icelandic
 Gutiérrez,,Gutierre,N,Old Spanish
@@ -300,8 +303,9 @@ Maríudóttir,,María,F,Icelandic
 Maríuson,,María,M,Icelandic
 Martínez,,Martín,N,Old Spanish
 Méndez,,Mendo,N,Old Spanish
+Menéndez,,Hermenegildo,N,Old Spanish
 Menéndez,,Menendo,N,Old Spanish
-Muñoz,,Muño,N,Old Spanish
+Muñoz,,Munio,N,Old Spanish
 Núñez,,Nuño,N,Old Spanish
 Ólafardóttir,,Ólöf,F,Icelandic
 Ólafarson,,Ólöf,M,Icelandic
@@ -312,6 +316,7 @@ Núñez,,Nuño,N,Old Spanish
 Ordóñez,,Ordoño,N,Old Spanish
 Óskarsdóttir,,Óskar,F,Icelandic
 Óskarsson,,Óskar,M,Icelandic
+Osóriz,,Osorio,N,Old Spanish
 Ovéquiz,,Oveco,N,Old Spanish
 Pálsdóttir,,Páll,F,Icelandic
 Pálsson,,Páll,M,Icelandic
@@ -320,16 +325,18 @@ Pérez,,Pedro,N,Old Spanish
 Pérez,,Pero,N,Old Spanish
 Pétursdóttir,,Pétur,F,Icelandic
 Pétursson,,Pétur,M,Icelandic
-Pinióliz,,Piniolo,N,Old Spanish
+Pinióliz,,Piñolo,N,Old Spanish
 Ragnarsdóttir,,Ragnar,F,Icelandic
 Ragnarsson,,Ragnar,M,Icelandic
 Ragnheiðardóttir,,Ragnheiður,F,Icelandic
 Ragnheiðarson,,Ragnheiður,M,Icelandic
+Raimúndez,,Raimundo,N,Old Spanish
 Ramírez,,Ramiro,N,Old Spanish
 Rodríguez,,Rodrigo,N,Old Spanish
 Ruiz,,Ruy,N,Old Spanish
 Salvadórez,,Salvador,N,Old Spanish
 Sánchez,,Sancho,N,Old Spanish
+Sebastiániz,,Sebastián,N,Old Spanish
 Sigríðardóttir,,Sigríður,F,Icelandic
 Sigríðarson,,Sigríður,M,Icelandic
 Sigrúnardóttir,,Sigrún,F,Icelandic
@@ -338,6 +345,7 @@ Sigurðardóttir,,Sigurður,F,Icelandic
 Sigurðarson,,Sigurður,M,Icelandic
 Sigurðsdóttir,,Sigurður,F,Icelandic
 Sigurðsson,,Sigurður,M,Icelandic
+Sisnándiz,,Sisnando,N,Old Spanish
 Sólveigardóttir,,Sólveig,F,Icelandic
 Sólveigarson,,Sólveig,M,Icelandic
 Sörudóttir,,Sara,F,Icelandic
