@@ -64,13 +64,32 @@ Data on common given names (*prénoms*) was sourced from `About.com
 
 Old Spanish
 ===========
-These names were found through a moderately thorough browsing of articles on
-both the `English-language`__ and `Spanish-language Wikipedias
-<https://es.wikipedia.org/>`_. As a result, they are no doubt a confused
-combination of names from all over the Iberian peninsula; but then again, so
-were the families of the time! Information on authentic spellings of the
-period (if such even exists) was lacking, so I have generally favoured the
-later Spanish spellings where available.
+Numerous sources were used for these names. One particularly good one was
+Cawley's *Medieval Lands*, hosted at the `Foundation for Medieval Genealogy
+<http://fmg.ac/Projects/MedLands/SPANISH%20NOBILITY%20EARLY%20MEDIEVAL.htm>`_.
+Additionally, extensive browsing of both the `English-language`__ and
+`Spanish-language Wikipedias <https://es.wikipedia.org/>`_ was used to compile
+and check lists. Finally, web searches that touched on many other sources were
+used to establish spellings and historicity of several names.
+
+On that note, spellings have not been handled consistently. In general, modern
+Spanish (Castilian) spellings have been preferred. Where several forms of a
+name were found to be applied to the same individuals, one has been chosen
+(e.g. Vermudo over Bermudo, Munio over Muño), with some attempt made to choose
+the one more commonly used. This has led to cases where some names follow one
+convention, and some another (especially the use of "ni" versus "ñ").
+Contrarily, when two forms (e.g. Pero and Pedro) both appeared in the same
+sources for *different* individuals, both forms have been retained.
+
+It is quite likely that such variations represent different regional
+preferences from across the Iberian peninsula. It is some reassurance to know
+that families of the time likewise combined individuals from all over the
+peninsula (and elsewhere)!
+
+As for surnames, these are exclusively of the form "de [place]", and have not
+been chosen systematically. All of them are attested, but it is not certain
+whether they were all truly used as surnames (i.e. passed down through the
+family), rather than titles of an individual *conde* (count).
 
 __ Wikipedia_
 
