@@ -201,21 +201,18 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
                             ' WHERE nationality = ?'.format(source),
                             (nat,))
                 for row in cur:
+                    name, rom = row
                     if verbosity > 1:
-                        print("\t'{}' to '{}': ".format(row['name'],
-                                                        row['romanisation']),
-                              end='')
+                        print("\t'{}' to '{}': ".format(name, rom), end='')
 
-                    if not translit.is_translit(row['romanisation'],
-                                                row['name'], ruleset_id):
-                        expected_translit = translit.translit(row['name'],
-                                                              ruleset_id)
+                    if not translit.is_translit(rom, name, ruleset_id):
+                        expected_translit = translit.translit(name, ruleset_id)
                         if verbosity > 1:
                             print("no, got '{}'".format(expected_translit))
 
-                        print("WARNING: {0} name '{1[name]}' is romanised as "
-                              "'{1[romanisation]}', expected "
-                              "'{2}'".format(nat, row, expected_translit),
+                        print("WARNING: {} name '{}' is romanised as '{}', "
+                              "expected '{}'".format(nat, name, rom,
+                                                     expected_translit),
                               file=sys.stderr)
                     elif verbosity > 1:
                         print('OK')

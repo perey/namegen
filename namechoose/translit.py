@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 """Transliteration tools."""
 # Copyright © 2015 Timothy Pederick.
@@ -15,6 +16,9 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# Compatibility features.
+from __future__ import unicode_literals
 
 # Standard library imports.
 from collections import OrderedDict
@@ -37,6 +41,17 @@ DEFAULT_FILENAME = os.path.join(DATA_DIR, 'translit.json')
 # Bicameral scripts have bicameral transliteration rules.
 BICAMERAL = ['Armn', 'Cyrl', 'Grek', 'Latn']
 
+# OrderedDict is available from Python 2.7/3.1, but OrderedDict.move_to_end()
+# was only added in Python 3.2.
+def move_to_end(od, key):
+    """Move an existing key to the end of an ordered dictionary."""
+    try:
+        od.move_to_end(key, last=True)
+    except AttributeError:
+        val = od[key]
+        del od[key]
+        od[key] = val
+
 def ruleset_by_id(ruleset_id, filename=None):
     """Load a transliteration ruleset from a file.
 
@@ -53,7 +68,7 @@ def ruleset_by_id(ruleset_id, filename=None):
     try:
         from_cache = _cached_rulesets[(filename, ruleset_id)]
         # Update the recent-use status of this cache entry.
-        _cached_rulesets.move_to_end((filename, ruleset_id))
+        move_to_end(_cached_rulesets, (filename, ruleset_id))
 
         return from_cache
     except KeyError:
@@ -61,7 +76,7 @@ def ruleset_by_id(ruleset_id, filename=None):
         try:
             rulefile = _cached_rulefiles[filename]
             # Update the recent-use status of this cache entry.
-            _cached_rulefiles.move_to_end(filename)
+            move_to_end(_cached_rulefiles, filename)
         except KeyError:
             # Nope. Load the file.
             rulefile = json.load(open(filename))
@@ -74,7 +89,8 @@ def ruleset_by_id(ruleset_id, filename=None):
         ruleset = rulefile.get(ruleset_id)
         if ruleset is not None:
             # Compile the regexes in this ruleset.
-            ruleset['rules'] = list((re.compile(regex), output)
+            ruleset['rules'] = list((re.compile(regex, flags=re.UNICODE),
+                                     output)
                                     for regex, output in ruleset['rules'])
 
         _cached_rulesets[(filename, ruleset_id)] = ruleset
