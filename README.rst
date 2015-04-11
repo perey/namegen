@@ -37,7 +37,7 @@ Additionally, historical names from these periods are supported:
 * Latin, *circa* the first centuries BC and AD (74 praenomina, 49 nomina in
   masculine and feminine forms, 71 cognomina including 53 with both masculine
   and feminine forms)
-* Old Spanish, *circa* the tenth to twelfth centuries (112 personal names with
+* Old Spanish, *circa* the tenth to twelfth centuries (114 personal names with
   corresponding patronyms for masculine names)
 
 Command-line usage
