@@ -23,7 +23,35 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 # Standard library imports.
-from functools import lru_cache
+try:
+    from functools import lru_cache
+except ImportError:
+    # Not available pre-3.2
+    from collections import OrderedDict
+    import functools
+    def lru_cache(maxsize):
+        '''A poor imitation of the LRU cache decorator.'''
+        def decorator(fn):
+            _cache = OrderedDict()
+            @functools.wraps(fn)
+            def cache_lookup(*args):
+                try:
+                    result = _cache[args]
+                except KeyError:
+                    # Cache miss.
+                    result = fn(*args)
+                    _cache[args] = result
+                    while len(_cache) > maxsize:
+                        _cache.popitem(last=False)
+                else:
+                    # Cache hit. Update to be most recently used. (We don't use
+                    # OrderedDict.move_to_end(), because that was new in version
+                    # 3.2, and this is only used if we're running pre-3.2!)
+                    del _cache[args]
+                    _cache[args] = result
+                return result
+            return cache_lookup
+        return decorator
 import os.path
 import re
 import sqlite3
@@ -193,9 +221,10 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
                         ' FROM "{}"'
                         ' ORDER BY Nationality'.format(table))
             for row in cur:
+                name, rom = row
                 try:
-                    check_for_script_mixing(row['name'])
-                    check_for_script_mixing(row['romanisation'])
+                    check_for_script_mixing(name)
+                    check_for_script_mixing(rom)
                 except ValueError as ve:
                     print('ERROR:', ve.args[0])
 
