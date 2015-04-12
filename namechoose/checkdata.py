@@ -23,7 +23,9 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 # Standard library imports.
+from functools import lru_cache
 import os.path
+import re
 import sqlite3
 import sys
 
@@ -177,6 +179,26 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
         # use them?
         # TODO
 
+        # pre-6. Do all names consist only of characters from one script, aside
+        # from common/inherited script? (This is to detect homoglyphs used by
+        # mistake, e.g. LATIN SMALL LETTER O for CYRILLIC SMALL LETTER O.)
+        if verbosity:
+            print('Checking for mixed scripts (homoglyph errors)...')
+        for table in TABLES:
+            if verbosity > 1:
+                print("\tChecking table '{}'".format(table))
+            cur = conn.cursor()
+            cur.execute('SELECT Name'
+                        ' , Romanisation'
+                        ' FROM "{}"'
+                        ' ORDER BY Nationality'.format(table))
+            for row in cur:
+                try:
+                    check_for_script_mixing(row['name'])
+                    check_for_script_mixing(row['romanisation'])
+                except ValueError as ve:
+                    print('ERROR:', ve.args[0])
+
         # 6. Do all transliterated names obey a transliteration standard, if
         # one is available?
         for nat, ruleset_id in TRANSLIT_RULESETS.items():
@@ -220,6 +242,21 @@ def validate_data(dbfilename=DEFAULT_DBFILE, verbosity=0):
     finally:
         # Do not commit! No changes should have been made anyway.
         conn.close()
+
+def check_for_script_mixing(s):
+    '''Check a string for mixed scripts.'''
+    IGNORABLE = ['Common', 'Inherited', 'Unknown']
+    final_script = None
+    for char in s:
+        script = script_of(char)
+        if script in IGNORABLE:
+            continue
+        elif final_script is None:
+            final_script = script
+        elif final_script != script:
+            raise ValueError("'{}' mixes {} and {} "
+                             "(at least!)".format(s, final_script, script))
+    return final_script
 
 def check_for_unknowns(conn, col, known_values, tables=TABLES):
     '''Check the database for unknown values in a given column.'''
@@ -320,3 +357,44 @@ def check_for_uniqueness(conn, table, id_col, extra_joins=()):
             print("WARNING: {} name '{}' has multiple similar entries "
                   "({})".format(nat, name, ', '.join(mismatches)),
                   file=sys.stderr)
+
+Scripts_line = re.compile('(?P<start>[0-9A-Za-z]{4,5})'
+                          '(?:\.\.(?P<end>[0-9A-Za-z]{4,5}))?'
+                          '\s+;\s+'
+                          '(?P<script>[A-Za-z]+)')
+@lru_cache(maxsize=512)
+def script_of(unichar):
+    '''Find the script property of a Unicode character.'''
+    codepoint = ord(unichar)
+
+    # This check requires the file Scripts.txt from the Unicode database to be
+    # in the dat/ directory under the location of this file.
+    THIS_DIR = os.path.dirname(__file__)
+    DATA_DIR = os.path.join(THIS_DIR, 'dat')
+    if not os.path.isdir(DATA_DIR):
+        raise IOError('data directory not found')
+    UNIDATA_SCRIPTS = os.path.join(DATA_DIR, 'Scripts.txt')
+    if not os.path.isfile(UNIDATA_SCRIPTS):
+        raise IOError('data file not found')
+
+    with open(UNIDATA_SCRIPTS) as df:
+        for line in df:
+            if (line == '\n' or        # Blank
+                line.startswith('#')): # Comment
+                continue
+            # Parse the line with a regex.
+            match = Scripts_line.match(line)
+            if match is None:
+                raise IOError("could not understand line '{}'".format(line))
+
+            # Read the start codepoint as a hexadecimal integer.
+            start = int(match.group('start'), 16)
+            if codepoint == start:
+                return match.group('script')
+            elif codepoint > start and match.group('end') is not None:
+                # Read the end codepoint as a hexadecimal integer.
+                end = int(match.group('end'), 16)
+                if codepoint <= end:
+                    return match.group('script')
+        else:
+            return 'Unknown'
