@@ -113,7 +113,7 @@ NAT_ABBREVS = {'hy': 'Armenian', 'hye': 'Armenian', 'arm': 'Armenian',
                'pl': 'Polish', 'pol': 'Polish',
                'ru': 'Russian', 'rus': 'Russian',
                'es': 'Spanish', 'spa': 'Spanish',
-               'tu': 'Turkish', 'tur': 'Turkish',
+               'tr': 'Turkish', 'tur': 'Turkish',
                'uk': 'Ukrainian', 'ukr': 'Ukrainian',
                'vi': 'Vietnamese', 'vie': 'Vietnamese'}
 # Get suitable values for nationality arguments.
